@@ -49,6 +49,7 @@ def test_analyze_reads_chrome_trace(tmp_path: Path) -> None:
     assert report["decode_steps"] == 2
     assert report["step_busy_fraction_median"] == pytest.approx(0.25)  # first step skipped
     assert report["kernel_launches_total"] == 1
+    assert report["host_wait_calls_total"] == 0
 
 
 def test_analyze_rejects_trace_without_steps(tmp_path: Path) -> None:

@@ -105,12 +105,12 @@ def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
     prompts = make_prompts(config.batch_size, config.input_len, vocab, config.seed, special_ids)
     input_ids = prompts.to(device)
     for _ in range(max(config.warmup_runs, 1)):
-        measure_run(model, input_ids, config.output_len)
+        measure_run(model, input_ids, config.output_len, config.regression)
     # Untraced baseline right before the traced pass, to measure profiler overhead.
-    baseline = measure_run(model, input_ids, config.output_len)
+    baseline = measure_run(model, input_ids, config.output_len, config.regression)
     name = f"bs{config.batch_size}-in{config.input_len}-out{config.output_len}"
     trace_path = out_dir / f"{name}.trace.json"
-    capture_trace(model, input_ids, config.output_len, trace_path)
+    capture_trace(model, input_ids, config.output_len, trace_path, config.regression)
     report = analyze(trace_path)
     untraced_us = metrics.percentile(baseline.itl_ms, 50) * 1000
     report |= {

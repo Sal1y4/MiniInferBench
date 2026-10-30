@@ -30,15 +30,27 @@ import torch
 from torch.profiler import ProfilerActivity, profile, record_function
 from transformers import DynamicCache, PreTrainedModel
 
+from miniinferbench.config import Regression
+
 DECODE_STEP = "decode_step"
 PREFILL = "prefill"
 
 
 @torch.inference_mode()
 def capture_trace(
-    model: PreTrainedModel, input_ids: torch.Tensor, output_len: int, path: Path
+    model: PreTrainedModel,
+    input_ids: torch.Tensor,
+    output_len: int,
+    path: Path,
+    regression: Regression = "none",
 ) -> None:
-    """Run one traced generation with each phase wrapped in record_function."""
+    """Run one traced generation with each phase wrapped in record_function.
+
+    Supports the "host_sync_each_step" regression so its effect is visible in
+    the trace; "no_kv_cache" is not traced (steps grow with sequence length).
+    """
+    if regression == "no_kv_cache":
+        raise ValueError("tracing the no_kv_cache regression is not supported")
     activities = [ProfilerActivity.CPU]
     if input_ids.device.type == "cuda":
         activities.append(ProfilerActivity.CUDA)
@@ -53,6 +65,8 @@ def capture_trace(
             with record_function(DECODE_STEP):
                 out = model(input_ids=token, past_key_values=cache, use_cache=True)
                 token = out.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+                if regression == "host_sync_each_step":
+                    token.cpu()
         if input_ids.device.type == "cuda":
             torch.cuda.synchronize()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -117,6 +131,16 @@ def count_launches(events: Sequence[dict[str, Any]]) -> int:
     )
 
 
+def count_host_waits(events: Sequence[dict[str, Any]]) -> int:
+    """CPU-side calls that block on the device: synchronizes and device-to-host copies."""
+    return sum(
+        1
+        for e in events
+        if e.get("cat") == "cuda_runtime"
+        and ("Synchronize" in e.get("name", "") or "Memcpy" in e.get("name", ""))
+    )
+
+
 def analyze(trace_path: Path) -> dict[str, Any]:
     data = json.loads(trace_path.read_text(encoding="utf-8"))
     events: list[dict[str, Any]] = data["traceEvents"] if isinstance(data, dict) else data
@@ -132,6 +156,7 @@ def analyze(trace_path: Path) -> dict[str, Any]:
         "step_busy_fraction_median": statistics.median(s.busy_fraction for s in steady),
         "kernels_per_step_median": statistics.median(s.kernels for s in steady),
         "kernel_launches_total": count_launches(events),
+        "host_wait_calls_total": count_host_waits(events),
         "top_kernels": [
             {"name": n, "total_us": us, "count": c} for n, us, c in top_kernels(events)
         ],
