@@ -33,7 +33,7 @@ def test_detects_a_wrong_loop(model: LlamaForCausalLM, monkeypatch: pytest.Monke
     monkeypatch.setattr(
         runner,
         "greedy_decode",
-        lambda m, ids, n, t=None: torch.zeros(
+        lambda m, ids, n, t=None, **kw: torch.zeros(
             (ids.shape[0], n), dtype=torch.int64, device=ids.device
         ),
     )
@@ -55,3 +55,12 @@ def test_measure_run_sample_counts(model: LlamaForCausalLM) -> None:
 def test_rejects_zero_output_len(model: LlamaForCausalLM) -> None:
     with pytest.raises(ValueError):
         greedy_decode(model, make_prompts(1, 4, vocab_size=128, seed=0), output_len=0)
+
+
+@pytest.mark.parametrize("regression", ["host_sync_each_step", "no_kv_cache"])
+def test_injected_regressions_keep_output_identical(
+    model: LlamaForCausalLM, regression: str
+) -> None:
+    input_ids = make_prompts(2, 10, vocab_size=128, seed=5)
+    report = check_correctness(model, input_ids, output_len=8, regression=regression)  # type: ignore[arg-type]
+    assert report.matches

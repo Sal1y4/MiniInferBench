@@ -20,7 +20,11 @@ from dataclasses import dataclass
 import torch
 from transformers import DynamicCache, GenerationConfig, PreTrainedModel
 
+from miniinferbench.config import Regression
 from miniinferbench.timing import EventTimeline, WallClock
+
+# Deliberate slowdowns for the regression case study. Each one keeps the output
+# identical, so only the harness's timing comparison and the trace can catch it.
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,11 +61,13 @@ def greedy_decode(
     input_ids: torch.Tensor,
     output_len: int,
     timeline: EventTimeline | None = None,
+    regression: Regression = "none",
 ) -> torch.Tensor:
     """Generate exactly `output_len` tokens per sequence; returns `[batch, output_len]`.
 
     EOS is ignored on purpose so every run does the same amount of work.
     If `timeline` is given, it is marked before prefill and after every token.
+    `regression` injects a known slowdown (see `Regression`); "none" in normal use.
     """
     if output_len < 1:
         raise ValueError(f"output_len must be >= 1, got {output_len}")
@@ -75,16 +81,31 @@ def greedy_decode(
     tokens = [token]
     if timeline is not None:
         timeline.mark()
+    sequence = input_ids
     for _ in range(output_len - 1):
-        out = model(input_ids=token, past_key_values=cache, use_cache=True)
+        if regression == "no_kv_cache":
+            # Recompute attention over the whole sequence every step.
+            sequence = torch.cat([sequence, token], dim=1)
+            out = model(input_ids=sequence, use_cache=False, logits_to_keep=1)
+        else:
+            out = model(input_ids=token, past_key_values=cache, use_cache=True)
         token = _next_token(out.logits)
+        if regression == "host_sync_each_step":
+            # A common real bug: copying each token to the host (e.g. to check
+            # for EOS) forces the CPU to wait for the GPU every step.
+            token.cpu()
         tokens.append(token)
         if timeline is not None:
             timeline.mark()
     return torch.cat(tokens, dim=1)
 
 
-def measure_run(model: PreTrainedModel, input_ids: torch.Tensor, output_len: int) -> RunSamples:
+def measure_run(
+    model: PreTrainedModel,
+    input_ids: torch.Tensor,
+    output_len: int,
+    regression: Regression = "none",
+) -> RunSamples:
     """Run one timed generation and return its raw samples."""
     device = input_ids.device
     if device.type == "cuda":
@@ -92,7 +113,7 @@ def measure_run(model: PreTrainedModel, input_ids: torch.Tensor, output_len: int
     timeline = EventTimeline(device)
     wall = WallClock(device)
     wall.start()
-    greedy_decode(model, input_ids, output_len, timeline)
+    greedy_decode(model, input_ids, output_len, timeline, regression=regression)
     e2e_wall_ms = wall.stop()
     gaps = timeline.finish()
     peak = torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None
@@ -127,10 +148,13 @@ class CorrectnessReport:
 
 
 def check_correctness(
-    model: PreTrainedModel, input_ids: torch.Tensor, output_len: int
+    model: PreTrainedModel,
+    input_ids: torch.Tensor,
+    output_len: int,
+    regression: Regression = "none",
 ) -> CorrectnessReport:
     """Compare our loop with `generate()` token by token."""
-    ours = greedy_decode(model, input_ids, output_len)
+    ours = greedy_decode(model, input_ids, output_len, regression=regression)
     reference = reference_generate(model, input_ids, output_len)
     diff = (ours != reference).nonzero()
     if diff.numel() == 0:

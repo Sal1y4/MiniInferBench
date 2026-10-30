@@ -44,6 +44,11 @@ def build_parser() -> argparse.ArgumentParser:
     trace.add_argument("--config", type=Path, help="JSON config file (defaults if omitted)")
     trace.add_argument("--out", type=Path, default=Path("traces"))
 
+    plot = sub.add_parser("plot", help="write the figures for one sweep tag")
+    plot.add_argument("--tag", required=True)
+    plot.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
+    plot.add_argument("--out", type=Path, default=Path("docs/figures"))
+
     table = sub.add_parser("table", help="print one sweep tag as a Markdown table")
     table.add_argument("--tag", required=True)
     table.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
@@ -183,6 +188,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "trace":
         return cmd_trace(args.config, args.out)
+    if args.command == "plot":
+        from miniinferbench.plots import plot_all
+
+        for path in plot_all(args.results, args.tag, args.out):
+            print(path)
+        return 0
     if args.command == "table":
         _print_table(args.results, args.tag)
         return 0

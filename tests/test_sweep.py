@@ -48,3 +48,14 @@ def test_points_over_budget_are_skipped(tmp_path: Path, monkeypatch: pytest.Monk
     )
     assert {r["status"] for r in records} == {"skipped"}
     assert "GiB" in records[0]["reason"]
+
+
+def test_plots_from_a_sweep(tmp_path: Path) -> None:
+    from miniinferbench.plots import plot_all
+
+    grid = sweep.SweepGrid(batch_sizes=(1, 2), input_lens=(8, 512), output_lens=(3, 128))
+    results = tmp_path / "sweep.jsonl"
+    sweep.run_sweep(BASE, grid, results, tag="t", options=OPTIONS)
+    written = plot_all(results, "t", tmp_path / "fig", output_len=128)
+    assert len(written) == 6
+    assert all(p.stat().st_size > 0 for p in written)

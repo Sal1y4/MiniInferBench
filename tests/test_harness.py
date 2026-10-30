@@ -64,7 +64,7 @@ def test_missing_cuda_is_env_error() -> None:
 def test_wrong_output_is_detected(monkeypatch: pytest.MonkeyPatch) -> None:
     import miniinferbench.runner as runner
 
-    def broken(model: Any, ids: torch.Tensor, n: int, t: Any = None) -> torch.Tensor:
+    def broken(model: Any, ids: torch.Tensor, n: int, t: Any = None, **kw: Any) -> torch.Tensor:
         return torch.zeros((ids.shape[0], n), dtype=torch.int64, device=ids.device)
 
     monkeypatch.setattr(runner, "greedy_decode", broken)

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Literal, Self
 
 Dtype = Literal["bfloat16", "float16", "float32"]
+Regression = Literal["none", "host_sync_each_step", "no_kv_cache"]
 
 
 class ConfigError(ValueError):
@@ -33,6 +34,7 @@ class BenchmarkConfig:
         dtype: Model weight and activation dtype.
         warmup_runs: Full prefill+decode runs executed before measuring.
         measure_runs: Measured runs; each one contributes one set of samples.
+        regression: Deliberately injected slowdown for case studies; "none" normally.
     """
 
     model_name: str = "HuggingFaceTB/SmolLM2-360M-Instruct"
@@ -43,6 +45,7 @@ class BenchmarkConfig:
     dtype: Dtype = "bfloat16"
     warmup_runs: int = 2
     measure_runs: int = 5
+    regression: Regression = "none"
 
     def __post_init__(self) -> None:
         positive = ("batch_size", "input_len", "output_len", "measure_runs")
@@ -54,6 +57,8 @@ class BenchmarkConfig:
             raise ConfigError(f"warmup_runs must be >= 0, got {self.warmup_runs!r}")
         if self.dtype not in ("bfloat16", "float16", "float32"):
             raise ConfigError(f"unsupported dtype {self.dtype!r}")
+        if self.regression not in ("none", "host_sync_each_step", "no_kv_cache"):
+            raise ConfigError(f"unknown regression {self.regression!r}")
         if not self.model_name:
             raise ConfigError("model_name must not be empty")
 
