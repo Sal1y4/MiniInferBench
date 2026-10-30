@@ -125,7 +125,9 @@ class MetricDiff:
         return abs(self.relative_change) > self.noise_band
 
 
-COMPARED_METRICS = ("ttft_ms_mean", "itl_ms_p50", "e2e_wall_ms_mean")
+# The tail matters: a host sync that only sometimes stalls leaves the median
+# ITL unchanged and shows up in p95/p99 (seen in the host_sync case study).
+COMPARED_METRICS = ("ttft_ms_mean", "itl_ms_p50", "itl_ms_p95", "itl_ms_p99", "e2e_wall_ms_mean")
 
 
 def compare_records(

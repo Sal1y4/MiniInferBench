@@ -128,6 +128,8 @@ def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
         "kernels_per_step_median",
         "untraced_itl_us_p50",
         "profiler_overhead",
+        "kernel_launches_total",
+        "host_wait_calls_total",
     )
     print(json.dumps({k: report[k] for k in keys}, indent=2))
     print("top kernels:")
