@@ -33,7 +33,9 @@ def test_detects_a_wrong_loop(model: LlamaForCausalLM, monkeypatch: pytest.Monke
     monkeypatch.setattr(
         runner,
         "greedy_decode",
-        lambda m, ids, n, t=None: torch.zeros((ids.shape[0], n), dtype=torch.int64),
+        lambda m, ids, n, t=None: torch.zeros(
+            (ids.shape[0], n), dtype=torch.int64, device=ids.device
+        ),
     )
     report = runner.check_correctness(
         model, make_prompts(1, 8, vocab_size=128, seed=2), output_len=6

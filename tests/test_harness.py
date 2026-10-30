@@ -65,7 +65,7 @@ def test_wrong_output_is_detected(monkeypatch: pytest.MonkeyPatch) -> None:
     import miniinferbench.runner as runner
 
     def broken(model: Any, ids: torch.Tensor, n: int, t: Any = None) -> torch.Tensor:
-        return torch.zeros((ids.shape[0], n), dtype=torch.int64)
+        return torch.zeros((ids.shape[0], n), dtype=torch.int64, device=ids.device)
 
     monkeypatch.setattr(runner, "greedy_decode", broken)
     record = run_task(CONFIG, CPU, tiny_loader)
