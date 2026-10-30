@@ -16,6 +16,7 @@ Measurement boundaries for one run (all inputs are already on the device):
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
 from transformers import DynamicCache, GenerationConfig, PreTrainedModel
@@ -141,10 +142,72 @@ def reference_generate(
     return out[:, input_ids.shape[1] :]
 
 
+# Default tolerance for a near tie, in logits. bf16 keeps 8 significant bits,
+# so a logit around 16 is stored in steps of 0.0625; two kernels that sum in a
+# different order can disagree by a few such steps.
+DEFAULT_TIE_TOLERANCE = 0.25
+
+MatchKind = Literal["exact", "near_tie", "mismatch"]
+
+
+@dataclass(frozen=True, slots=True)
+class Divergence:
+    """Where one sequence first differs from `generate()`, with the evidence.
+
+    `margin` is logit[reference token] - logit[our token] at that position,
+    from a fresh forward pass over the shared prefix (logits upcast to float32). A near tie
+    means both tokens are the model's top two candidates and `margin` is
+    within tolerance: the two paths rounded differently, not computed wrong.
+    """
+
+    sequence: int
+    position: int
+    ours: int
+    reference: int
+    margin: float
+    top_two: bool
+
+
 @dataclass(frozen=True, slots=True)
 class CorrectnessReport:
-    matches: bool
-    first_mismatch: tuple[int, int] | None  # (sequence, position)
+    kind: MatchKind
+    divergences: tuple[Divergence, ...] = ()
+
+    @property
+    def matches(self) -> bool:
+        """Exact or near tie: the loop is trusted and may be timed."""
+        return self.kind != "mismatch"
+
+    @property
+    def first_mismatch(self) -> tuple[int, int] | None:  # (sequence, position)
+        if not self.divergences:
+            return None
+        d = self.divergences[0]
+        return d.sequence, d.position
+
+
+@torch.inference_mode()
+def _divergence(
+    model: PreTrainedModel,
+    input_ids: torch.Tensor,
+    ours: torch.Tensor,
+    reference: torch.Tensor,
+    seq: int,
+    pos: int,
+) -> Divergence:
+    # Both paths agree up to `pos`, so the shared prefix is well defined.
+    prefix = torch.cat([input_ids[seq], reference[seq, :pos]]).unsqueeze(0)
+    logits = model(input_ids=prefix, logits_to_keep=1).logits[0, -1].float()
+    a, b = int(ours[seq, pos]), int(reference[seq, pos])
+    top_two = set(logits.topk(2).indices.tolist())
+    return Divergence(
+        sequence=seq,
+        position=pos,
+        ours=a,
+        reference=b,
+        margin=float(logits[b] - logits[a]),
+        top_two={a, b} == top_two,
+    )
 
 
 def check_correctness(
@@ -152,12 +215,25 @@ def check_correctness(
     input_ids: torch.Tensor,
     output_len: int,
     regression: Regression = "none",
+    tie_tolerance: float = DEFAULT_TIE_TOLERANCE,
 ) -> CorrectnessReport:
-    """Compare our loop with `generate()` token by token."""
+    """Compare our loop with `generate()` token by token.
+
+    Greedy decoding in bf16 can legitimately flip between two near-equal
+    candidates when kernels differ (e.g. attention with vs without a mask).
+    So each diverging sequence is judged by its logit margin: within
+    `tie_tolerance` and among the top two it is a near tie, otherwise a
+    mismatch. Tokens after the first divergence are not compared, because
+    the two continuations no longer share a prefix.
+    """
     ours = greedy_decode(model, input_ids, output_len, regression=regression)
     reference = reference_generate(model, input_ids, output_len)
-    diff = (ours != reference).nonzero()
-    if diff.numel() == 0:
-        return CorrectnessReport(matches=True, first_mismatch=None)
-    seq, pos = (int(v) for v in diff[0])
-    return CorrectnessReport(matches=False, first_mismatch=(seq, pos))
+    divergences = []
+    for seq in range(ours.shape[0]):
+        diff = (ours[seq] != reference[seq]).nonzero()
+        if diff.numel() > 0:
+            divergences.append(_divergence(model, input_ids, ours, reference, seq, int(diff[0, 0])))
+    if not divergences:
+        return CorrectnessReport(kind="exact")
+    tie = all(d.top_two and abs(d.margin) <= tie_tolerance for d in divergences)
+    return CorrectnessReport(kind="near_tie" if tie else "mismatch", divergences=tuple(divergences))

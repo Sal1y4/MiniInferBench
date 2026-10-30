@@ -70,6 +70,9 @@ def test_wrong_output_is_detected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(runner, "greedy_decode", broken)
     record = run_task(CONFIG, CPU, tiny_loader)
     assert record["status"] == RunStatus.WRONG_RESULT
+    assert record["correctness"]["kind"] == "mismatch"
+    assert "logit margin" in record["reason"]
+    assert "summary" not in record  # an incorrect loop is never timed
 
 
 def test_noisy_run_is_unstable() -> None:

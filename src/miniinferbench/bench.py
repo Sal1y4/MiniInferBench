@@ -10,7 +10,13 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel
 
 from miniinferbench import metrics
 from miniinferbench.config import BenchmarkConfig
-from miniinferbench.runner import CorrectnessReport, RunSamples, check_correctness, measure_run
+from miniinferbench.runner import (
+    DEFAULT_TIE_TOLERANCE,
+    CorrectnessReport,
+    RunSamples,
+    check_correctness,
+    measure_run,
+)
 from miniinferbench.workload import fingerprint, make_prompts
 
 DTYPES = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
@@ -43,6 +49,7 @@ class BenchmarkResult:
         e2e = [r.e2e_wall_ms for r in self.runs]
         out: dict[str, Any] = {
             "correct": self.correctness.matches,
+            "match_kind": self.correctness.kind,
             "num_runs": len(self.runs),
             "ttft_ms_mean": metrics.mean(ttft),
             "e2e_wall_ms_mean": metrics.mean(e2e),
@@ -75,6 +82,7 @@ def run_benchmark(
     model: PreTrainedModel,
     special_ids: set[int],
     device: torch.device,
+    tie_tolerance: float = DEFAULT_TIE_TOLERANCE,
 ) -> BenchmarkResult:
     vocab_size = model.get_input_embeddings().weight.shape[0]
     prompts = make_prompts(
@@ -84,7 +92,9 @@ def run_benchmark(
     result = BenchmarkResult(
         config=config,
         input_fingerprint=fingerprint(prompts),
-        correctness=check_correctness(model, input_ids, config.output_len, config.regression),
+        correctness=check_correctness(
+            model, input_ids, config.output_len, config.regression, tie_tolerance
+        ),
     )
     if not result.correctness.matches:
         return result  # timing an incorrect implementation proves nothing

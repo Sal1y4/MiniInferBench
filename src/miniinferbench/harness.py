@@ -22,6 +22,7 @@ from transformers import PreTrainedModel
 from miniinferbench.bench import BenchmarkResult, default_device, load_model, run_benchmark
 from miniinferbench.config import BenchmarkConfig
 from miniinferbench.manifest import build_manifest, new_run_id
+from miniinferbench.runner import DEFAULT_TIE_TOLERANCE
 from miniinferbench.status import EnvironmentProblem, RunStatus, classify_exception
 
 # A loader must return the model already placed on the given device, plus the
@@ -37,6 +38,7 @@ DEFAULT_CV_THRESHOLD = 0.05
 class HarnessOptions:
     require_cuda: bool = True
     cv_threshold: float = DEFAULT_CV_THRESHOLD
+    tie_tolerance: float = DEFAULT_TIE_TOLERANCE
 
 
 def _raw_samples(result: BenchmarkResult) -> dict[str, Any]:
@@ -48,10 +50,21 @@ def _raw_samples(result: BenchmarkResult) -> dict[str, Any]:
     }
 
 
+def _correctness_evidence(result: BenchmarkResult) -> dict[str, Any]:
+    report = result.correctness
+    return {
+        "kind": report.kind,
+        "divergences": [dataclasses.asdict(d) for d in report.divergences],
+    }
+
+
 def classify_result(result: BenchmarkResult, cv_threshold: float) -> tuple[RunStatus, str]:
     if not result.correctness.matches:
-        seq, pos = result.correctness.first_mismatch or (-1, -1)
-        return RunStatus.WRONG_RESULT, f"differs from generate() at sequence {seq}, token {pos}"
+        d = result.correctness.divergences[0]
+        return RunStatus.WRONG_RESULT, (
+            f"differs from generate() at sequence {d.sequence}, token {d.position} "
+            f"(logit margin {d.margin:.3f}, top two: {d.top_two})"
+        )
     cv = result.summary()["e2e_wall_ms_cv"]
     if cv > cv_threshold:
         return RunStatus.UNSTABLE, f"e2e CV {cv:.3f} exceeds threshold {cv_threshold:.3f}"
@@ -78,7 +91,7 @@ def run_task(
         device = default_device()
         model, special_ids = loader(config, device)
         record["model_revision"] = getattr(model.config, "_commit_hash", None)
-        result = run_benchmark(config, model, special_ids, device)
+        result = run_benchmark(config, model, special_ids, device, options.tie_tolerance)
     except Exception as exc:
         status = classify_exception(exc)
         record |= {
@@ -92,6 +105,7 @@ def run_task(
         "status": status.value,
         "reason": reason,
         "input_fingerprint": result.input_fingerprint,
+        "correctness": _correctness_evidence(result),
     }
     if result.runs:
         record |= {"summary": result.summary(), "raw": _raw_samples(result)}
