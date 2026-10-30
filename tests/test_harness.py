@@ -19,7 +19,7 @@ CPU = HarnessOptions(require_cuda=False, cv_threshold=10.0)
 
 
 def tiny_loader(config: BenchmarkConfig, device: torch.device) -> tuple[PreTrainedModel, set[int]]:
-    return make_tiny_model(), {0}
+    return make_tiny_model().to(device), {0}
 
 
 def failing_loader(exc: BaseException) -> Any:

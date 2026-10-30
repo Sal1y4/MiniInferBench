@@ -24,6 +24,8 @@ from miniinferbench.config import BenchmarkConfig
 from miniinferbench.manifest import build_manifest, new_run_id
 from miniinferbench.status import EnvironmentProblem, RunStatus, classify_exception
 
+# A loader must return the model already placed on the given device, plus the
+# tokenizer's special token ids (excluded from synthetic prompts).
 ModelLoader = Callable[[BenchmarkConfig, torch.device], tuple[PreTrainedModel, set[int]]]
 
 # Repeated end-to-end times varying more than this (as coefficient of
