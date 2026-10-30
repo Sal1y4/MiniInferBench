@@ -66,8 +66,6 @@ def _lines(
     label: Callable[[int], str],
 ) -> None:
     chosen = [p for p in points if all(p["config"][k] == v for k, v in fixed.items())]
-    if x_key == "batch_size":
-        ax.set_xscale("log", base=2)  # batch sizes double: 1, 2, 4, 8
     for color, value in zip(
         SERIES, sorted({p["config"][series_key] for p in chosen}), strict=False
     ):
@@ -78,16 +76,6 @@ def _lines(
         xs = [p["config"][x_key] for p in rows]
         ys = [y(p) for p in rows]
         ax.plot(xs, ys, color=color, linewidth=2, marker="o", markersize=6, label=label(value))
-        if xs:
-            ax.annotate(
-                label(value),
-                (xs[-1], ys[-1]),
-                xytext=(6, 0),
-                textcoords="offset points",
-                va="center",
-                fontsize=9,
-                color=INK_SECONDARY,
-            )
     ticks = sorted({p["config"][x_key] for p in chosen})
     ax.set_xticks(ticks, [str(t) for t in ticks])
     ax.minorticks_off()
@@ -188,12 +176,15 @@ def plot_all(results: Path, tag: str, out_dir: Path, output_len: int = 128) -> l
         min(picks, key=lambda p: (p["config"]["batch_size"], p["config"]["input_len"])),
         max(picks, key=lambda p: (p["config"]["batch_size"], p["config"]["input_len"])),
     ]
-    for color, p in zip(SERIES, picks, strict=False):
-        samples = [g for run in p["raw"]["itl_ms"] for g in run]
+    all_samples = [[g for run in p["raw"]["itl_ms"] for g in run] for p in picks]
+    lo = int(min(min(s) for s in all_samples))
+    hi = max(max(s) for s in all_samples)
+    bins = [lo + i * 0.5 for i in range(int((hi - lo) / 0.5) + 2)]  # shared 0.5 ms bins
+    for color, p, samples in zip(SERIES, picks, all_samples, strict=False):
         c = p["config"]
         ax.hist(
             samples,
-            bins=40,
+            bins=bins,
             color=color,
             alpha=0.75,
             label=f"batch {c['batch_size']}, input {c['input_len']} (n={len(samples)})",
