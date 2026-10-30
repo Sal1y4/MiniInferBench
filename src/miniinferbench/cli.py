@@ -40,6 +40,10 @@ def build_parser() -> argparse.ArgumentParser:
     sweep.add_argument("--output", type=int, nargs="+", default=[32, 128, 256])
     sweep.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
 
+    trace = sub.add_parser("trace", help="capture and analyze a profiler trace for one config")
+    trace.add_argument("--config", type=Path, help="JSON config file (defaults if omitted)")
+    trace.add_argument("--out", type=Path, default=Path("traces"))
+
     table = sub.add_parser("table", help="print one sweep tag as a Markdown table")
     table.add_argument("--tag", required=True)
     table.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
@@ -80,6 +84,51 @@ def _print_table(results: Path, tag: str) -> None:
                 cells.append(f"{value:.2f}")
         head = f"| {c['batch_size']} | {c['input_len']} | {c['output_len']} | {r['status']} | "
         print(head + " | ".join(cells) + " |")
+
+
+def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
+    from miniinferbench import metrics
+    from miniinferbench.bench import default_device, load_model
+    from miniinferbench.runner import measure_run
+    from miniinferbench.trace import analyze, capture_trace
+    from miniinferbench.workload import fingerprint, make_prompts
+
+    config = BenchmarkConfig.load(config_path) if config_path else BenchmarkConfig()
+    device = default_device()
+    model, special_ids = load_model(config, device)
+    vocab = model.get_input_embeddings().weight.shape[0]
+    prompts = make_prompts(config.batch_size, config.input_len, vocab, config.seed, special_ids)
+    input_ids = prompts.to(device)
+    for _ in range(max(config.warmup_runs, 1)):
+        measure_run(model, input_ids, config.output_len)
+    # Untraced baseline right before the traced pass, to measure profiler overhead.
+    baseline = measure_run(model, input_ids, config.output_len)
+    name = f"bs{config.batch_size}-in{config.input_len}-out{config.output_len}"
+    trace_path = out_dir / f"{name}.trace.json"
+    capture_trace(model, input_ids, config.output_len, trace_path)
+    report = analyze(trace_path)
+    untraced_us = metrics.percentile(baseline.itl_ms, 50) * 1000
+    report |= {
+        "config": config.to_dict(),
+        "input_fingerprint": fingerprint(prompts),
+        "untraced_itl_us_p50": untraced_us,
+        "profiler_overhead": report["step_span_us_median"] / untraced_us - 1,
+    }
+    (out_dir / f"{name}.analysis.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(f"trace: {trace_path}")
+    keys = (
+        "step_span_us_median",
+        "step_busy_us_median",
+        "step_busy_fraction_median",
+        "kernels_per_step_median",
+        "untraced_itl_us_p50",
+        "profiler_overhead",
+    )
+    print(json.dumps({k: report[k] for k in keys}, indent=2))
+    print("top kernels:")
+    for k in report["top_kernels"][:5]:
+        print(f"  {k['total_us']:10.0f} us  x{k['count']:<5d} {k['name'][:90]}")
+    return 0
 
 
 def _execute(config: BenchmarkConfig, results: Path, allow_cpu: bool) -> dict[str, Any]:
@@ -132,6 +181,8 @@ def main(argv: list[str] | None = None) -> int:
         statuses = [r["status"] for r in records]
         print({s: statuses.count(s) for s in sorted(set(statuses))})
         return 0
+    if args.command == "trace":
+        return cmd_trace(args.config, args.out)
     if args.command == "table":
         _print_table(args.results, args.tag)
         return 0
