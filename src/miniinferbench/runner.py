@@ -128,11 +128,14 @@ def reference_generate(
     model: PreTrainedModel, input_ids: torch.Tensor, output_len: int
 ) -> torch.Tensor:
     """Hugging Face greedy generation with EOS disabled; returns new tokens only."""
+    # eos_token_id=[] (not None): None falls back to the model's own EOS, and
+    # min_new_tokens then masks it to -inf, forcing the runner-up token
+    # wherever EOS is the true argmax. Found on SmolLM2, margin ~7 logits.
     config = GenerationConfig(
         do_sample=False,
         max_new_tokens=output_len,
         min_new_tokens=output_len,
-        eos_token_id=None,
+        eos_token_id=[],
         pad_token_id=0,
     )
     attention_mask = torch.ones_like(input_ids)

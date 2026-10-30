@@ -26,6 +26,21 @@ def test_matches_hf_generate(model: LlamaForCausalLM, batch_size: int) -> None:
     assert report.matches, f"first mismatch at {report.first_mismatch}"
 
 
+def test_reference_does_not_suppress_eos(model: LlamaForCausalLM) -> None:
+    # Regression test: make a token our loop emits mid-sequence the model's
+    # EOS. The reference must still produce it (we ignore EOS on both sides),
+    # not mask it and fall back to the runner-up.
+    input_ids = make_prompts(2, 8, vocab_size=128, seed=3)
+    ours = greedy_decode(model, input_ids, output_len=6)
+    saved = model.generation_config.eos_token_id
+    model.generation_config.eos_token_id = int(ours[0, 3])
+    try:
+        report = check_correctness(model, input_ids, output_len=6)
+    finally:
+        model.generation_config.eos_token_id = saved
+    assert report.kind == "exact", report.divergences
+
+
 def test_detects_a_wrong_loop(model: LlamaForCausalLM, monkeypatch: pytest.MonkeyPatch) -> None:
     # Fault injection: a "decoder" that always returns token 0 must be caught.
     import miniinferbench.runner as runner
