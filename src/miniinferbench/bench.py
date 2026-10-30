@@ -86,6 +86,8 @@ def run_benchmark(
         input_fingerprint=fingerprint(prompts),
         correctness=check_correctness(model, input_ids, config.output_len),
     )
+    if not result.correctness.matches:
+        return result  # timing an incorrect implementation proves nothing
     for _ in range(config.warmup_runs):
         measure_run(model, input_ids, config.output_len)
     for _ in range(config.measure_runs):

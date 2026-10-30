@@ -28,6 +28,29 @@ python scripts/check_env.py     # prints GPU, CUDA, and library versions
 pytest -q
 ```
 
+## Usage
+
+```bash
+mib run --config configs/smollm2_360m_smoke.json   # appends a record to results/runs.jsonl
+mib rerun <run_id>                                  # repeat a run with its exact config
+mib compare <baseline_run_id> <candidate_run_id>    # changes judged against run-to-run noise
+python scripts/timing_pitfall.py                    # why GPU timing needs synchronization
+```
+
+Every run ends with exactly one status:
+
+| Status | Meaning |
+| --- | --- |
+| `ok` | Finished, output matches `generate()`, repeated measurements stable |
+| `wrong_result` | Output differs from `generate()`; timing is skipped |
+| `unstable` | Correct, but end-to-end time varies more than the CV threshold |
+| `env_error` | Out of memory, no CUDA, kernel/driver mismatch, download or IO failure |
+| `program_error` | Any other exception, with its traceback stored |
+
+Each record stores the config, git commit and dirty flag, library and GPU
+versions, the model revision, a fingerprint of the input tokens, and every raw
+timing sample.
+
 ## Development checks
 
 ```bash
