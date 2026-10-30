@@ -1,0 +1,232 @@
+{
+  "decode_steps": 31,
+  "step_span_us_median": 20096.6064453125,
+  "step_busy_us_median": 3641.442138671875,
+  "step_busy_fraction_median": 0.18147898741788893,
+  "kernels_per_step_median": 1302.0,
+  "kernel_launches_total": 39456,
+  "host_wait_calls_total": 2,
+  "top_kernels": [
+    {
+      "name": "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 7, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)",
+      "total_us": 25882.923000000177,
+      "count": 3968
+    },
+    {
+      "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_32x32_128x2_tn_align8::Params)",
+      "total_us": 21199.682000000044,
+      "count": 2048
+    },
+    {
+      "name": "std::enable_if<!(false), void>::type internal::gemvx::kernel<int, int, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, false, true, true, false, 6, false, cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float> >(cublasGemvParamsEx<int, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16 const>, cublasGemvTensorStridedBatched<__nv_bfloat16>, float>)",
+      "total_us": 19014.761999999984,
+      "count": 1024
+    },
+    {
+      "name": "void pytorch_flash::flash_fwd_kernel<Flash_fwd_kernel_traits<64, 128, 128, 4, false, false, cutlass::bfloat16_t, Flash_kernel_traits<64, 128, 128, 4, cutlass::bfloat16_t> >, false, false, false, false, false, true, false, false>(pytorch_flash::Flash_fwd_params)",
+      "total_us": 8797.930999999948,
+      "count": 992
+    },
+    {
+      "name": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1})",
+      "total_us": 5612.800000000016,
+      "count": 4161
+    },
+    {
+      "name": "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul> >(int, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul>)",
+      "total_us": 4019.58499999988,
+      "count": 4032
+    },
+    {
+      "name": "void at::native::vectorized_elementwise_kernel<4, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> >, std::array<char*, 3ul> >(int, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> >, std::array<char*, 3ul>)",
+      "total_us": 3947.426000000048,
+      "count": 3039
+    },
+    {
+      "name": "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)",
+      "total_us": 3569.925999999995,
+      "count": 2112
+    },
+    {
+      "name": "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<float, at::native::MeanOps<float, float, float, float>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::MeanOps<float, float, float, float>, unsigned int, float, 4, 4>)",
+      "total_us": 3243.8560000000098,
+      "count": 2080
+    },
+    {
+      "name": "void at::native::(anonymous namespace)::CatArrayBatchedCopy<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 4, 64, 64>(at::native::(anonymous namespace)::OpaqueType<2u>*, at::native::(anonymous namespace)::CatArrInputTensorMetadata<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 64, 64>, at::native::(anonymous namespace)::TensorSizeStride<unsigned int, 4u>, int, unsigned int)",
+      "total_us": 3203.0680000000416,
+      "count": 2112
+    }
+  ],
+  "steps": [
+    {
+      "span_us": 19714.02978515625,
+      "busy_us": 3643.60791015625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 18934.5400390625,
+      "busy_us": 3632.3671875,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19092.62109375,
+      "busy_us": 3635.09619140625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19495.94921875,
+      "busy_us": 3639.95068359375,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19411.7568359375,
+      "busy_us": 3645.06640625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 18836.6201171875,
+      "busy_us": 3642.142578125,
+      "kernels": 1302
+    },
+    {
+      "span_us": 22639.251953125,
+      "busy_us": 3643.728515625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19708.494140625,
+      "busy_us": 3642.03662109375,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19547.85400390625,
+      "busy_us": 3636.7900390625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 20447.72705078125,
+      "busy_us": 3649.74755859375,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19181.548828125,
+      "busy_us": 3642.49072265625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19868.65380859375,
+      "busy_us": 3634.6953125,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19130.828125,
+      "busy_us": 3638.81396484375,
+      "kernels": 1302
+    },
+    {
+      "span_us": 34022.47802734375,
+      "busy_us": 3813.31103515625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 44263.65185546875,
+      "busy_us": 3647.79052734375,
+      "kernels": 1302
+    },
+    {
+      "span_us": 20882.8330078125,
+      "busy_us": 3634.6474609375,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19691.27685546875,
+      "busy_us": 3640.84765625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 38360.82177734375,
+      "busy_us": 3803.22802734375,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19998.3818359375,
+      "busy_us": 3639.47021484375,
+      "kernels": 1302
+    },
+    {
+      "span_us": 41194.6220703125,
+      "busy_us": 3642.97705078125,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19460.0771484375,
+      "busy_us": 3638.60693359375,
+      "kernels": 1302
+    },
+    {
+      "span_us": 51752.46923828125,
+      "busy_us": 3640.15087890625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 41445.9501953125,
+      "busy_us": 3639.55712890625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 32785.0341796875,
+      "busy_us": 3637.9501953125,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19419.40478515625,
+      "busy_us": 3643.640625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 19823.59912109375,
+      "busy_us": 3640.18017578125,
+      "kernels": 1302
+    },
+    {
+      "span_us": 30131.30078125,
+      "busy_us": 3648.49072265625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 70975.1669921875,
+      "busy_us": 3647.48095703125,
+      "kernels": 1302
+    },
+    {
+      "span_us": 20194.8310546875,
+      "busy_us": 3654.6533203125,
+      "kernels": 1302
+    },
+    {
+      "span_us": 20507.6630859375,
+      "busy_us": 3647.759765625,
+      "kernels": 1302
+    },
+    {
+      "span_us": 24736.44091796875,
+      "busy_us": 3633.91357421875,
+      "kernels": 1302
+    }
+  ],
+  "config": {
+    "model_name": "HuggingFaceTB/SmolLM2-360M-Instruct",
+    "batch_size": 1,
+    "input_len": 128,
+    "output_len": 32,
+    "seed": 0,
+    "dtype": "bfloat16",
+    "warmup_runs": 2,
+    "measure_runs": 5,
+    "regression": "none"
+  },
+  "input_fingerprint": "2d4cdc968c74c937",
+  "untraced_itl_us_p50": 14304.256439208984,
+  "profiler_overhead": 0.40493890966791346
+}
