@@ -106,8 +106,9 @@ record (status, manifest, raw samples, evidence) <── stability check <──
   ITL); a synchronized wall clock gives end-to-end time. `scripts/timing_pitfall.py`
   shows why: without synchronization a 41 ms GPU workload "takes" 0.18 ms.
 - **Correctness first.** A run that does not match `generate()` is never timed.
-  Divergences are classified as exact, near tie (top-two tokens within a
-  configurable logit tolerance) or mismatch, and the margin is stored.
+  Divergences are classified as exact, near tie (both tokens within a
+  configurable logit tolerance of the best one) or mismatch, and the logits
+  behind that judgement are stored.
 - **One status per run.** Failures are classified rather than crashing the sweep.
 - **Comparable by construction.** Each record stores a fingerprint of the input
   tokens; `mib compare` refuses runs with different inputs.

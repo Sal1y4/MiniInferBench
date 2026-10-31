@@ -242,10 +242,13 @@ MatchKind = Literal["exact", "near_tie", "mismatch"]
 class Divergence:
     """Where one sequence first differs from `generate()`, with the evidence.
 
-    `margin` is logit[reference token] - logit[our token] at that position,
-    from a fresh forward pass over the shared prefix (logits upcast to float32). A near tie
-    means both tokens are the model's top two candidates and `margin` is
-    within tolerance: the two paths rounded differently, not computed wrong.
+    Logits come from a fresh forward pass over the shared prefix (upcast to
+    float32). `margin` is logit[reference token] - logit[our token]; each
+    `*_gap` is how far that token's logit is below the best logit. A near tie
+    means both tokens are within tolerance of the best: argmax over (near-)
+    equal values is implementation-defined, so two correct kernels may pick
+    differently. Bf16 produces exact ties too, sometimes among more than two
+    tokens, which is why the rule is not limited to the top two.
     """
 
     sequence: int
@@ -253,7 +256,8 @@ class Divergence:
     ours: int
     reference: int
     margin: float
-    top_two: bool
+    ours_gap: float
+    reference_gap: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,14 +291,15 @@ def _divergence(
     prefix = torch.cat([input_ids[seq], reference[seq, :pos]]).unsqueeze(0)
     logits = model(input_ids=prefix, logits_to_keep=1).logits[0, -1].float()
     a, b = int(ours[seq, pos]), int(reference[seq, pos])
-    top_two = set(logits.topk(2).indices.tolist())
+    best = logits.max()
     return Divergence(
         sequence=seq,
         position=pos,
         ours=a,
         reference=b,
         margin=float(logits[b] - logits[a]),
-        top_two={a, b} == top_two,
+        ours_gap=float(best - logits[a]),
+        reference_gap=float(best - logits[b]),
     )
 
 
@@ -310,10 +315,10 @@ def check_correctness(
 
     Greedy decoding in bf16 can legitimately flip between two near-equal
     candidates when kernels differ (e.g. attention with vs without a mask).
-    So each diverging sequence is judged by its logit margin: within
-    `tie_tolerance` and among the top two it is a near tie, otherwise a
-    mismatch. Tokens after the first divergence are not compared, because
-    the two continuations no longer share a prefix.
+    So each diverging sequence is re-scored: if both tokens are within
+    `tie_tolerance` of the best logit it is a near tie, otherwise a mismatch.
+    Tokens after the first divergence are not compared, because the two
+    continuations no longer share a prefix.
     """
     ours = greedy_decode(
         model, input_ids, output_len, regression=regression, decode_mode=decode_mode
@@ -326,5 +331,5 @@ def check_correctness(
             divergences.append(_divergence(model, input_ids, ours, reference, seq, int(diff[0, 0])))
     if not divergences:
         return CorrectnessReport(kind="exact")
-    tie = all(d.top_two and abs(d.margin) <= tie_tolerance for d in divergences)
+    tie = all(max(d.ours_gap, d.reference_gap) <= tie_tolerance for d in divergences)
     return CorrectnessReport(kind="near_tie" if tie else "mismatch", divergences=tuple(divergences))

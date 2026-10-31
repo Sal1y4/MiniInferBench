@@ -62,42 +62,46 @@ def test_detects_a_wrong_loop(model: LlamaForCausalLM, monkeypatch: pytest.Monke
 
 def _reference_with_swap(
     model: LlamaForCausalLM, input_ids: torch.Tensor, pos: int, rank: int
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, float]:
     """Our own output, with the token at `pos` of sequence 0 replaced by the
-    model's `rank`-th choice (rank 1 = runner-up) at that point."""
+    model's `rank`-th choice (rank 1 = runner-up); also returns how far that
+    token's logit is below the best one."""
     ours = greedy_decode(model, input_ids, output_len=6)
     prefix = torch.cat([input_ids[0], ours[0, :pos]]).unsqueeze(0)
     with torch.inference_mode():
-        logits = model(input_ids=prefix).logits[0, -1]
+        logits = model(input_ids=prefix).logits[0, -1].float()
+    top = logits.topk(rank + 1)
     ref = ours.clone()
-    ref[0, pos] = logits.topk(rank + 1).indices[rank]
-    return ref
+    ref[0, pos] = top.indices[rank]
+    return ref, float(top.values[0] - top.values[rank])
 
 
 @pytest.mark.parametrize(
-    ("rank", "tolerance", "kind"),
-    [(1, 1e9, "near_tie"), (1, 0.0, "mismatch"), (5, 1e9, "mismatch")],
+    ("rank", "within_tolerance", "kind"),
+    [(1, True, "near_tie"), (1, False, "mismatch"), (5, False, "mismatch")],
 )
-def test_classifies_divergence_by_logit_margin(
+def test_classifies_divergence_by_gap_to_best_logit(
     model: LlamaForCausalLM,
     monkeypatch: pytest.MonkeyPatch,
     rank: int,
-    tolerance: float,
+    within_tolerance: bool,
     kind: str,
 ) -> None:
-    # A flip to the runner-up within tolerance is a near tie; a flip to a
-    # lower-ranked token is a mismatch however large the tolerance.
+    # A flip to a token whose logit is within tolerance of the best is a near
+    # tie; a flip to a token further below the best is a mismatch.
     import miniinferbench.runner as runner
 
     input_ids = make_prompts(2, 8, vocab_size=128, seed=3)
-    ref = _reference_with_swap(model, input_ids, pos=3, rank=rank)
+    ref, gap = _reference_with_swap(model, input_ids, pos=3, rank=rank)
+    _, runner_up_gap = _reference_with_swap(model, input_ids, pos=3, rank=1)
+    tolerance = gap * 1.01 if within_tolerance else runner_up_gap * 0.5
     monkeypatch.setattr(runner, "reference_generate", lambda m, ids, n: ref)
     report = runner.check_correctness(model, input_ids, 6, tie_tolerance=tolerance)
     assert report.kind == kind
     assert report.first_mismatch == (0, 3)
     (d,) = report.divergences
-    assert d.margin < 0  # our token is the model's top choice here
-    assert d.top_two == (rank == 1)
+    assert d.ours_gap == pytest.approx(0.0, abs=1e-5)  # our token is the best here
+    assert d.reference_gap == pytest.approx(gap, rel=1e-4)
 
 
 def test_measure_run_sample_counts(model: LlamaForCausalLM) -> None:

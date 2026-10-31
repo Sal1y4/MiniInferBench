@@ -63,7 +63,8 @@ def classify_result(result: BenchmarkResult, cv_threshold: float) -> tuple[RunSt
         d = result.correctness.divergences[0]
         return RunStatus.WRONG_RESULT, (
             f"differs from generate() at sequence {d.sequence}, token {d.position} "
-            f"(logit margin {d.margin:.3f}, top two: {d.top_two})"
+            f"(logit margin {d.margin:.3f}; below best: ours {d.ours_gap:.3f}, "
+            f"reference {d.reference_gap:.3f})"
         )
     cv = result.summary()["e2e_wall_ms_cv"]
     if cv > cv_threshold:
