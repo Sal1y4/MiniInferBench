@@ -159,6 +159,11 @@ ruff check . && ruff format --check . && mypy && pytest -q
   VM's memory; host-side interference is the likely cause but is not proven.
   Unstable points are kept and labelled, not dropped. GPU clocks stayed at
   ~2880 MHz and 46–57 °C, so thermal throttling is ruled out.
+- **WSL2, not native Linux.** The GPU is reached through the WSL2 paravirtualized
+  driver and the CPU is scheduled by the Windows host. Since decode here is
+  bound by CPU-side kernel launches, absolute ITL on native Linux may well be
+  lower; the shape of the results (flat ITL across batch sizes) is expected to
+  hold but has not been checked on native Linux.
 - **One model, one GPU, one framework.** Results describe HF Transformers eager
   mode on a small model. They say nothing about vLLM, larger models, or other
   GPUs.
