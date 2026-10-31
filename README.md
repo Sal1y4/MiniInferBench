@@ -7,6 +7,23 @@ every step, checks the output token by token against `generate()`, and writes
 one classified record per run (config, environment, raw samples, evidence).
 Every number below comes from a record in [`results-published/`](results-published/).
 
+## At a glance
+
+On SmolLM2-360M and an RTX 5070 (WSL2):
+
+1. **Found the bottleneck.** Decode was launch-bound: about 1,300 kernel
+   launches per step, with the GPU busy only 19% of the time.
+2. **Tested the fix and split the credit.** A static KV cache alone made decode
+   10% slower; operator fusion cut inter-token latency from 14.8 to 6.0 ms; CUDA
+   graphs brought it to 4.1 ms (3.6x faster, GPU busy 95%), with output still
+   matching `generate()`. See [the ablation](#ablation-what-each-part-contributes).
+3. **The harness caught real bugs.** The token-level check against `generate()`
+   found two configuration bugs in the reference itself, and an injected
+   host-sync regression showed up in P99 latency (+70%) while the median stayed
+   flat.
+
+![Decode throughput, eager vs CUDA graph](docs/figures/modes_throughput_vs_batch.png)
+
 ## Results: SmolLM2-360M on an RTX 5070
 
 Setup: `HuggingFaceTB/SmolLM2-360M-Instruct`, bfloat16, greedy, synthetic
