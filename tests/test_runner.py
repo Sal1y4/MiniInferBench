@@ -126,12 +126,13 @@ def test_injected_regressions_keep_output_identical(
     assert report.matches
 
 
-def test_cuda_graph_mode_matches_generate(model: LlamaForCausalLM) -> None:
-    # On CPU this runs the static-cache path without graph capture; the second
+@pytest.mark.parametrize("mode", ["static", "compiled", "cuda_graph"])
+def test_static_cache_modes_match_generate(model: LlamaForCausalLM, mode: str) -> None:
+    # On CPU these run the static-cache path without compilation; the second
     # call reuses (and resets) the same cache, as graph replay requires.
     input_ids = make_prompts(2, 8, vocab_size=128, seed=4)
     for _ in range(2):
-        report = check_correctness(model, input_ids, output_len=6, decode_mode="cuda_graph")
+        report = check_correctness(model, input_ids, output_len=6, decode_mode=mode)  # type: ignore[arg-type]
         assert report.kind == "exact", report.divergences
 
 

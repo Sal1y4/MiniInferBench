@@ -15,7 +15,7 @@ from typing import Any, Literal, Self
 
 Dtype = Literal["bfloat16", "float16", "float32"]
 Regression = Literal["none", "host_sync_each_step", "no_kv_cache"]
-DecodeMode = Literal["eager", "cuda_graph"]
+DecodeMode = Literal["eager", "static", "compiled", "cuda_graph"]
 
 
 class ConfigError(ValueError):
@@ -36,8 +36,10 @@ class BenchmarkConfig:
         warmup_runs: Full prefill+decode runs executed before measuring.
         measure_runs: Measured runs; each one contributes one set of samples.
         regression: Deliberately injected slowdown for case studies; "none" normally.
-        decode_mode: "eager" (dynamic KV cache, one launch per kernel) or
-            "cuda_graph" (static KV cache, each decode step replayed as a CUDA graph).
+        decode_mode: "eager" (dynamic KV cache, one launch per kernel);
+            "static" (static KV cache, still eager); "compiled" (static cache,
+            torch.compile fuses ops, kernels still launched one by one);
+            "cuda_graph" (compiled and each decode step replayed as a CUDA graph).
     """
 
     model_name: str = "HuggingFaceTB/SmolLM2-360M-Instruct"
@@ -63,10 +65,10 @@ class BenchmarkConfig:
             raise ConfigError(f"unsupported dtype {self.dtype!r}")
         if self.regression not in ("none", "host_sync_each_step", "no_kv_cache"):
             raise ConfigError(f"unknown regression {self.regression!r}")
-        if self.decode_mode not in ("eager", "cuda_graph"):
+        if self.decode_mode not in ("eager", "static", "compiled", "cuda_graph"):
             raise ConfigError(f"unknown decode_mode {self.decode_mode!r}")
-        if self.decode_mode == "cuda_graph" and self.regression == "no_kv_cache":
-            raise ConfigError("no_kv_cache cannot be combined with cuda_graph decoding")
+        if self.decode_mode != "eager" and self.regression == "no_kv_cache":
+            raise ConfigError("no_kv_cache needs decode_mode 'eager'")
         if not self.model_name:
             raise ConfigError("model_name must not be empty")
 

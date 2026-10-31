@@ -69,35 +69,51 @@ def _no_scope(_: str) -> AbstractContextManager[None]:
 
 
 @dataclass
-class _GraphState:
-    forward: Callable[..., Any]
-    caches: dict[tuple[int, int], StaticCache]
+class _StaticState:
+    forwards: dict[DecodeMode, Callable[..., Any]]
+    caches: dict[tuple[DecodeMode, int, int], StaticCache]
 
 
-# One compiled forward per model, plus one static cache per (batch, length),
-# reused across runs: CUDA graphs replay fixed memory addresses, so the cache
-# must stay where it was when the graph was recorded.
-_GRAPH_STATE: weakref.WeakKeyDictionary[PreTrainedModel, _GraphState] = weakref.WeakKeyDictionary()
+# Per model: one decode forward per mode, plus one static cache per (mode,
+# batch, length), reused across runs. CUDA graphs replay fixed memory
+# addresses, so the cache must stay where it was when the graph was recorded.
+_STATIC_STATE: weakref.WeakKeyDictionary[PreTrainedModel, _StaticState] = (
+    weakref.WeakKeyDictionary()
+)
+
+# How each static-cache mode runs a decode step. "compiled" fuses ops into
+# fewer kernels but still launches them one by one; "cuda_graph" also captures
+# the step as a CUDA graph and replays it with one launch. Comparing
+# static -> compiled -> cuda_graph separates the three effects.
+_COMPILE_MODES: dict[DecodeMode, str | None] = {
+    "static": None,
+    "compiled": "default",
+    "cuda_graph": "reduce-overhead",
+}
 
 
-def _graph_state(model: PreTrainedModel, device: torch.device) -> _GraphState:
-    state = _GRAPH_STATE.get(model)
+def _decode_forward(
+    model: PreTrainedModel, mode: DecodeMode, device: torch.device
+) -> tuple[_StaticState, Callable[..., Any]]:
+    state = _STATIC_STATE.get(model)
     if state is None:
+        state = _StaticState(forwards={}, caches={})
+        _STATIC_STATE[model] = state
+    if mode not in state.forwards:
+        compile_mode = _COMPILE_MODES[mode]
         forward: Callable[..., Any] = model.forward
-        if device.type == "cuda":
-            # "reduce-overhead" captures each decode step as a CUDA graph and
-            # replays it with one launch instead of ~1,300. CPU has no CUDA
-            # graphs, so there the static-cache path runs eagerly (used by tests).
-            forward = torch.compile(model.forward, mode="reduce-overhead")
-        state = _GraphState(forward=forward, caches={})
-        _GRAPH_STATE[model] = state
-    return state
+        # Compilation is CUDA-only here; on CPU (tests) every static mode runs
+        # the same eager static-cache path.
+        if compile_mode is not None and device.type == "cuda":
+            forward = torch.compile(model.forward, mode=compile_mode)
+        state.forwards[mode] = forward
+    return state, state.forwards[mode]
 
 
 def _static_cache(
-    state: _GraphState, model: PreTrainedModel, batch_size: int, max_len: int
+    state: _StaticState, model: PreTrainedModel, mode: DecodeMode, batch_size: int, max_len: int
 ) -> StaticCache:
-    key = (batch_size, max_len)
+    key = (mode, batch_size, max_len)
     cache = state.caches.get(key)
     if cache is None:
         cache = StaticCache(config=model.config, max_cache_len=max_len)
@@ -122,22 +138,22 @@ def greedy_decode(
     EOS is ignored on purpose so every run does the same amount of work.
     If `timeline` is given, it is marked before prefill and after every token.
     `regression` injects a known slowdown (see `Regression`); "none" in normal use.
-    `decode_mode="cuda_graph"` uses a static KV cache and replays each decode
-    step as a CUDA graph; prefill stays eager in both modes.
+    `decode_mode` other than "eager" uses a static KV cache; "compiled" and
+    "cuda_graph" also compile the decode step (see `_COMPILE_MODES`). Prefill
+    is eager in every mode.
     """
     if output_len < 1:
         raise ValueError(f"output_len must be >= 1, got {output_len}")
-    if decode_mode == "cuda_graph" and regression == "no_kv_cache":
-        raise ValueError("no_kv_cache cannot be combined with cuda_graph decoding")
+    if decode_mode != "eager" and regression == "no_kv_cache":
+        raise ValueError("no_kv_cache needs decode_mode 'eager'")
     batch_size, input_len = input_ids.shape
     device = input_ids.device
-    static = decode_mode == "cuda_graph"
+    static = decode_mode != "eager"
     if static:
-        state = _graph_state(model, device)
+        state, decode_forward = _decode_forward(model, decode_mode, device)
         cache: DynamicCache | StaticCache = _static_cache(
-            state, model, batch_size, input_len + output_len
+            state, model, decode_mode, batch_size, input_len + output_len
         )
-        decode_forward = state.forward
         # Built once on the device: creating a position tensor from a Python
         # int every step would be a host-to-device copy per step.
         positions = torch.arange(input_len + output_len, device=device)
@@ -173,7 +189,7 @@ def greedy_decode(
                 sequence = torch.cat([sequence, token], dim=1)
                 out = model(input_ids=sequence, use_cache=False, logits_to_keep=1)
             else:
-                if static and device.type == "cuda":
+                if decode_mode == "cuda_graph" and device.type == "cuda":
                     # The previous step's graph outputs are consumed already.
                     torch.compiler.cudagraph_mark_step_begin()  # type: ignore[no-untyped-call]
                 out = decode_forward(
