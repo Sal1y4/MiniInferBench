@@ -255,6 +255,27 @@ ruff check . && ruff format --check . && mypy && pytest -q
 - **Correctness is checked against `generate()`**, which is itself code with
   configuration pitfalls (see above). Matching it proves agreement, not truth.
 
+## Related tools
+
+If the question is only "how fast is this model on this GPU", existing tools
+answer it: vLLM's benchmark scripts, NVIDIA GenAI-Perf, Hugging Face
+optimum-benchmark, and MLPerf Inference for standardized results. Most of them
+measure from the outside (send requests, time responses) and are the right
+choice for serving load tests or comparing engines.
+
+This project measures from inside the generation loop, which those tools are
+not built for:
+
+- per-step GPU timestamps (CUDA events between tokens), not request latency;
+- a token-by-token correctness check against `generate()` before any timing;
+- swappable implementations of the loop itself, which is what made the
+  eager / static / compiled / CUDA graph ablation possible;
+- a status per run (wrong result, unstable, environment error) instead of
+  a number that is always reported.
+
+It is a harness for studying and catching changes in one implementation, not
+a replacement for engine-level benchmarks.
+
 ## Methodology reference
 
 The measurement methodology (separate prefill and decode, warmup isolation,
