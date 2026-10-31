@@ -70,13 +70,11 @@ Both modes were swept at the same commit, output 128
 
 ![ITL by decode mode](docs/figures/modes_itl_vs_input.png)
 
-- **The prediction held.** Decode got 1.6x to 4.9x faster, and at batch 4,
-  input 512 the traced step dropped from 1,334 kernel launches to one graph
-  launch, with the GPU busy 95% of the step instead of 19%
-  ([eager](results-published/traces/eager-bs4-in512-out128.analysis.json),
-  [CUDA graph](results-published/traces/cuda_graph-bs4-in512-out128-cuda_graph.analysis.json)).
-  The batch-1, input-128 ITL of 2.9 ms is close to the 3.6 ms of GPU busy time
-  the eager trace showed.
+- **Decode got 1.6x to 4.9x faster**, and at batch 4, input 512 the GPU was
+  busy 95% of each step instead of 19%. The batch-1, input-128 ITL of 2.9 ms is
+  close to the 3.6 ms of GPU busy time the eager trace showed. But
+  `reduce-overhead` does two things at once (operator fusion and CUDA graphs),
+  so this sweep alone does not say which one helped. The ablation below does.
 - **The bottleneck moved to the GPU.** In eager mode ITL is flat at ~14.5 ms
   whatever the batch or input length. With graphs it grows with both (batch 8:
   3.9 ms at input 128, 9.1 ms at input 1024), because reading the KV cache now
@@ -92,6 +90,38 @@ Both modes were swept at the same commit, output 128
 - **Costs.** Peak memory is higher (2.2 GiB vs 1.2 GiB at batch 8, input 1024:
   the static cache and the graph memory pool), compilation adds several seconds,
   and graph mode needs longer warmup (6 runs instead of 2).
+
+### Ablation: what each part contributes
+
+Two extra modes isolate the parts: `static` (static KV cache, no compilation)
+and `compiled` (static cache plus `torch.compile(mode="default")`: fusion, no
+graphs). Same commit, same inputs, output 128
+([`results-published/ablation.jsonl`](results-published/ablation.jsonl);
+traces for batch 4 in [`results-published/traces/`](results-published/traces/)).
+
+| Mode | What changes | ITL P50, bs4 in512 | ITL P50, bs1 in128 | Kernels per step (bs4) | GPU busy (bs4) |
+| --- | --- | --- | --- | --- | --- |
+| `eager` | baseline | 14.78 ms | 14.34 ms | 1,334 | 19% |
+| `static` | + static KV cache | 16.27 ms (+10%) | 17.07 ms (unstable) | 1,565 | 23% |
+| `compiled` | + operator fusion | 6.05 ms (-59%) | 6.53 ms | 579 | 50% |
+| `cuda_graph` | + CUDA graphs | 4.05 ms (-73%) | 2.92 ms (-80%) | 580, in 1 graph launch | 95% |
+
+- **The static cache alone is slower.** It is needed for graphs (fixed
+  shapes and addresses) but makes SDPA use the memory-efficient kernel with a
+  mask over the whole cache, and adds mask and cache-update kernels: 231
+  more kernels and ~1.9 ms more GPU time per step.
+- **Fusion gives most of the gain.** Inductor fuses 1,565 kernels into 579.
+  GPU busy time per step barely changes (~4.0 ms in eager, compiled and graph
+  traces), so the saving is launch overhead, which confirms that decode was
+  launch-bound.
+- **Graphs remove the remaining launches.** The 579 kernels are replayed with
+  one graph launch per step. This matters more when the GPU work per step is
+  small: at batch 4 graphs take ITL from 6.05 to 4.05 ms, at batch 1 from
+  6.53 to 2.92 ms.
+- Batch-4 traces published before commit `7911faa` undercount
+  `kernel_launches_total` for compiled modes: Triton kernels launch through the
+  driver API (`cuLaunchKernel`), which the counter then ignored. Per-step
+  kernel counts come from GPU-side events and are unaffected.
 
 ## Case study: can the harness catch a regression?
 
