@@ -52,10 +52,13 @@ class BenchmarkResult:
             "match_kind": self.correctness.kind,
             "num_runs": len(self.runs),
             "ttft_ms_mean": metrics.mean(ttft),
+            # The median resists one-off stalls (cold libraries, allocator
+            # growth) that can double a single run's TTFT.
+            "ttft_ms_p50": metrics.percentile(ttft, 50),
             "e2e_wall_ms_mean": metrics.mean(e2e),
             "e2e_wall_ms_cv": metrics.coefficient_of_variation(e2e),
             "prefill_tokens_per_s": metrics.prefill_tokens_per_s(
-                cfg.batch_size, cfg.input_len, metrics.mean(ttft)
+                cfg.batch_size, cfg.input_len, metrics.percentile(ttft, 50)
             ),
             "output_tokens_per_s": metrics.output_tokens_per_s(
                 cfg.batch_size, cfg.output_len, metrics.mean(e2e)

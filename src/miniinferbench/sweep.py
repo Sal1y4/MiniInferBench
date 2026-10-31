@@ -25,6 +25,7 @@ from miniinferbench.harness import HarnessOptions, run_task
 from miniinferbench.manifest import build_manifest, new_run_id
 from miniinferbench.memory import GIB, available_bytes, estimate, model_shape
 from miniinferbench.results import append_record, read_records
+from miniinferbench.runner import greedy_decode
 from miniinferbench.status import RunStatus
 
 
@@ -84,6 +85,11 @@ def run_sweep(
         config: BenchmarkConfig, dev: torch.device
     ) -> tuple[PreTrainedModel, set[int]]:
         return model, special_ids
+
+    # Initialize CUDA libraries (cuBLAS handles, kernel caches) before the
+    # first point, so its first measured runs do not pay for it.
+    warm = torch.randint(0, 100, (1, 32), device=device)
+    greedy_decode(model, warm, output_len=4)
 
     done = completed_points(results, tag)
     records = []

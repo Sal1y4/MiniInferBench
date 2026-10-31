@@ -49,6 +49,17 @@ def build_parser() -> argparse.ArgumentParser:
     plot.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
     plot.add_argument("--out", type=Path, default=Path("docs/figures"))
 
+    modes = sub.add_parser("plot-modes", help="compare decode modes, one sweep tag each")
+    modes.add_argument(
+        "--tag",
+        action="append",
+        required=True,
+        metavar="LABEL=TAG",
+        help="e.g. --tag eager=my-eager-sweep --tag cuda_graph=my-graph-sweep",
+    )
+    modes.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
+    modes.add_argument("--out", type=Path, default=Path("docs/figures"))
+
     table = sub.add_parser("table", help="print one sweep tag as a Markdown table")
     table.add_argument("--tag", required=True)
     table.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
@@ -59,7 +70,7 @@ def _print_table(results: Path, tag: str) -> None:
     from miniinferbench.results import read_records
 
     cols = (
-        "ttft_ms_mean",
+        "ttft_ms_p50",
         "itl_ms_p50",
         "itl_ms_p99",
         "decode_tokens_per_s",
@@ -201,6 +212,13 @@ def main(argv: list[str] | None = None) -> int:
         from miniinferbench.plots import plot_all
 
         for path in plot_all(args.results, args.tag, args.out):
+            print(path)
+        return 0
+    if args.command == "plot-modes":
+        from miniinferbench.plots import plot_modes
+
+        tags = dict(item.split("=", 1) for item in args.tag)
+        for path in plot_modes(args.results, tags, args.out):
             print(path)
         return 0
     if args.command == "table":

@@ -152,10 +152,10 @@ def plot_all(results: Path, tag: str, out_dir: Path, output_len: int = 128) -> l
     width = 0.38
     ax.bar(
         [x - width / 2 for x in xs],
-        [p["summary"]["ttft_ms_mean"] for p in fixed],
+        [p["summary"]["ttft_ms_p50"] for p in fixed],
         width=width,
         color=SERIES[0],
-        label="Prefill (TTFT, 512 tokens/seq)",
+        label="Prefill (TTFT P50, 512 tokens/seq)",
     )
     ax.bar(
         [x + width / 2 for x in xs],
@@ -218,4 +218,80 @@ def plot_all(results: Path, tag: str, out_dir: Path, output_len: int = 128) -> l
     ax.set_ylim(bottom=0)
     ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9)
     written.append(_save(fig, out_dir, "memory.png"))
+    return written
+
+
+def plot_modes(
+    results: Path,
+    tags: dict[str, str],
+    out_dir: Path,
+    input_len: int = 512,
+    output_len: int = 128,
+) -> list[Path]:
+    """Compare decode modes (e.g. eager vs cuda_graph), one sweep tag per mode."""
+    points = {label: load_points(results, tag) for label, tag in tags.items()}
+    out_dir.mkdir(parents=True, exist_ok=True)
+    head = next(iter(points.values()))[0]
+    gpu = head["manifest"]["env"].get("gpu_name", "CPU")
+    model = head["config"]["model_name"].split("/")[-1]
+    sub = f"{model}, {head['config']['dtype']}, {gpu}, output {output_len} tokens"
+    written = []
+
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    for color, (label, pts) in zip(SERIES, points.items(), strict=False):
+        rows = sorted(
+            (
+                p
+                for p in pts
+                if p["config"]["input_len"] == input_len and p["config"]["output_len"] == output_len
+            ),
+            key=lambda p: p["config"]["batch_size"],
+        )
+        xs = [p["config"]["batch_size"] for p in rows]
+        ax.plot(
+            xs,
+            [p["summary"]["decode_tokens_per_s"] for p in rows],
+            color=color,
+            linewidth=2,
+            marker="o",
+            markersize=6,
+            label=label,
+        )
+        ax.set_xticks(xs, [str(x) for x in xs])
+    _style(
+        ax,
+        "Decode throughput by decode mode",
+        "Batch size",
+        "Decode tokens/s",
+        sub + f", input {input_len}",
+    )
+    ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9)
+    written.append(_save(fig, out_dir, "modes_throughput_vs_batch.png"))
+
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    lines = [(label, bs) for label in points for bs in (1, 8)]
+    for color, (label, bs) in zip(SERIES, lines, strict=False):
+        rows = sorted(
+            (
+                p
+                for p in points[label]
+                if p["config"]["batch_size"] == bs and p["config"]["output_len"] == output_len
+            ),
+            key=lambda p: p["config"]["input_len"],
+        )
+        xs = [p["config"]["input_len"] for p in rows]
+        ax.plot(
+            xs,
+            [p["summary"]["itl_ms_p50"] for p in rows],
+            color=color,
+            linewidth=2,
+            marker="o",
+            markersize=6,
+            label=f"{label}, batch {bs}",
+        )
+        ax.set_xticks(xs, [str(x) for x in xs])
+    _style(ax, "Inter-token latency by decode mode", "Input length (tokens)", "ITL P50 (ms)", sub)
+    ax.set_ylim(bottom=0)
+    ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9)
+    written.append(_save(fig, out_dir, "modes_itl_vs_input.png"))
     return written

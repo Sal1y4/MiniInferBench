@@ -97,7 +97,7 @@ def _record(e2e: float, cv: float, fingerprint: str = "abc") -> dict[str, Any]:
         "run_id": f"r{e2e}",
         "status": "ok",
         "input_fingerprint": fingerprint,
-        "summary": {"e2e_wall_ms_mean": e2e, "e2e_wall_ms_cv": cv, "ttft_ms_mean": 10.0},
+        "summary": {"e2e_wall_ms_mean": e2e, "e2e_wall_ms_cv": cv, "ttft_ms_p50": 10.0},
     }
 
 
@@ -106,7 +106,7 @@ def test_compare_flags_only_changes_above_noise() -> None:
     assert not small["e2e_wall_ms_mean"].significant  # +1% < 3% band
     big = {d.name: d for d in compare_records(_record(100.0, 0.01), _record(120.0, 0.01))}
     assert big["e2e_wall_ms_mean"].significant
-    assert not big["ttft_ms_mean"].significant
+    assert not big["ttft_ms_p50"].significant
 
 
 def test_compare_refuses_different_inputs() -> None:

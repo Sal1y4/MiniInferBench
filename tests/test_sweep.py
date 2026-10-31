@@ -59,3 +59,20 @@ def test_plots_from_a_sweep(tmp_path: Path) -> None:
     written = plot_all(results, "t", tmp_path / "fig", output_len=128)
     assert len(written) == 6
     assert all(p.stat().st_size > 0 for p in written)
+
+
+def test_mode_comparison_plots(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from miniinferbench.plots import plot_modes
+
+    grid = sweep.SweepGrid(batch_sizes=(1, 8), input_lens=(8, 512), output_lens=(128,))
+    results = tmp_path / "sweep.jsonl"
+    sweep.run_sweep(BASE, grid, results, tag="e", options=OPTIONS)
+    graph_base = replace(BASE, decode_mode="cuda_graph")
+    sweep.run_sweep(graph_base, grid, results, tag="g", options=OPTIONS)
+    written = plot_modes(results, {"eager": "e", "cuda_graph": "g"}, tmp_path / "fig")
+    assert [p.name for p in written] == [
+        "modes_throughput_vs_batch.png",
+        "modes_itl_vs_input.png",
+    ]
