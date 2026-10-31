@@ -123,8 +123,13 @@ def top_kernels(events: Sequence[dict[str, Any]], limit: int = 10) -> list[tuple
 
 
 def count_launches(events: Sequence[dict[str, Any]]) -> int:
+    """Kernel launches from the CPU. Runtime-API launches show up as
+    cudaLaunchKernel; Triton kernels (torch.compile) and some libraries use
+    the driver API, cuLaunchKernel, so both categories count."""
     return sum(
-        1 for e in events if e.get("cat") == "cuda_runtime" and "LaunchKernel" in e.get("name", "")
+        1
+        for e in events
+        if e.get("cat") in ("cuda_runtime", "cuda_driver") and "LaunchKernel" in e.get("name", "")
     )
 
 

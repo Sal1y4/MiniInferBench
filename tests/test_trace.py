@@ -3,7 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from miniinferbench.trace import _union_length, analyze, step_stats, top_kernels
+from miniinferbench.trace import (
+    _union_length,
+    analyze,
+    count_graph_launches,
+    count_launches,
+    step_stats,
+    top_kernels,
+)
 
 
 def _span(ts: float, dur: float, name: str = "decode_step") -> dict[str, object]:
@@ -70,3 +77,15 @@ def test_capture_writes_a_chrome_trace(tmp_path: Path) -> None:
     events = json.loads(path.read_text())["traceEvents"]
     names = {e.get("name") for e in events}
     assert {"prefill", "decode_step"} <= names
+
+
+def test_launches_count_runtime_and_driver_api() -> None:
+    # Triton kernels from torch.compile are launched through the driver API.
+    events = [
+        {"cat": "cuda_runtime", "name": "cudaLaunchKernel"},
+        {"cat": "cuda_driver", "name": "cuLaunchKernel"},
+        {"cat": "cuda_runtime", "name": "cudaGraphLaunch"},
+        {"cat": "cpu_op", "name": "aten::mm"},
+    ]
+    assert count_launches(events) == 2
+    assert count_graph_launches(events) == 1
