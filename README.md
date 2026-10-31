@@ -167,6 +167,13 @@ ruff check . && ruff format --check . && mypy && pytest -q
 - **One model, one GPU, one framework.** Results describe HF Transformers eager
   mode on a small model. They say nothing about vLLM, larger models, or other
   GPUs.
+- **A minimal loop, not `generate()`.** The timed loop has no logits
+  processors, stopping criteria or per-step stop check. HF `generate()`
+  (transformers 5.22.1) reads its stop flag on the host every step, which is
+  the same pattern as the `host_sync_each_step` regression. A quick side check
+  (7 runs each, not a published record) had `generate()` about 5% slower end to
+  end with identical tokens, so these numbers are a little optimistic for
+  users who call `generate()` directly.
 - **Synthetic prompts, equal length, no padding.** Real traffic is not like this.
 - **Correctness is checked against `generate()`**, which is itself code with
   configuration pitfalls (see above). Matching it proves agreement, not truth.
