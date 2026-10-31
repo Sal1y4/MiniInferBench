@@ -14,7 +14,7 @@ On SmolLM2-360M and an RTX 5070 (WSL2):
 1. **Found the bottleneck.** Decode was launch-bound: about 1,300 kernel
    launches per step, with the GPU busy only 19% of the time.
 2. **Tested the fix and split the credit.** A static KV cache alone made decode
-   10% slower; operator fusion cut inter-token latency from 14.8 to 6.1 ms; CUDA
+   10% slower; operator fusion cut inter-token latency from 14.8 to 6.0 ms; CUDA
    graphs brought it to 4.1 ms (3.6x faster, GPU busy 95%), with output still
    matching `generate()`. See [the ablation](#ablation-what-each-part-contributes).
 3. **The harness caught real bugs.** The token-level check against `generate()`
