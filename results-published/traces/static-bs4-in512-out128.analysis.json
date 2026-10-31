@@ -1,0 +1,714 @@
+{
+  "decode_steps": 127,
+  "step_span_us_median": 25798.573974609375,
+  "step_busy_us_median": 5956.432373046875,
+  "step_busy_fraction_median": 0.23254079704194772,
+  "kernels_per_step_median": 1565.0,
+  "kernel_launches_total": 171452,
+  "graph_launches_total": 0,
+  "host_wait_calls_total": 4,
+  "top_kernels": [
+    {
+      "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x2_tn_align8::Params)",
+      "total_us": 219407.58500000552,
+      "count": 20448
+    },
+    {
+      "name": "fmha_cutlassF_bf16_aligned_64x64_rf_sm80(PyTorchMemEffAttention::AttentionKernel<cutlass::bfloat16_t, cutlass::arch::Sm80, true, 64, 64, 64, true, true>::Params)",
+      "total_us": 175270.94800000053,
+      "count": 4064
+    },
+    {
+      "name": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})",
+      "total_us": 116857.90000000077,
+      "count": 8128
+    },
+    {
+      "name": "void cutlass::Kernel2<cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x1_tn_align8>(cutlass_80_wmma_tensorop_bf16_s161616gemm_bf16_16x16_128x1_tn_align8::Params)",
+      "total_us": 53582.521999998986,
+      "count": 8128
+    },
+    {
+      "name": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1})",
+      "total_us": 40142.63899999921,
+      "count": 24704
+    },
+    {
+      "name": "void cutlass::Kernel2<cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x256_32x4_tn_align8>(cutlass_80_tensorop_bf16_s16816gemm_relu_bf16_64x256_32x4_tn_align8::Params)",
+      "total_us": 20953.873000000003,
+      "count": 160
+    },
+    {
+      "name": "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)",
+      "total_us": 15507.82299999906,
+      "count": 8448
+    },
+    {
+      "name": "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul> >(int, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul>)",
+      "total_us": 15017.904999999784,
+      "count": 16320
+    },
+    {
+      "name": "void at::native::(anonymous namespace)::CatArrayBatchedCopy<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 4, 64, 64>(at::native::(anonymous namespace)::OpaqueType<2u>*, at::native::(anonymous namespace)::CatArrInputTensorMetadata<at::native::(anonymous namespace)::OpaqueType<2u>, unsigned int, 64, 64>, at::native::(anonymous namespace)::TensorSizeStride<unsigned int, 4u>, int, unsigned int)",
+      "total_us": 14837.553999998705,
+      "count": 8192
+    },
+    {
+      "name": "void at::native::index_elementwise_kernel<128, 4, at::native::index_copy_kernel_impl<at::native::OpaqueType<2> >(at::TensorIterator&, long, long, long)::{lambda(int)#1}>(long, at::native::index_copy_kernel_impl<at::native::OpaqueType<2> >(at::TensorIterator&, long, long, long)::{lambda(int)#1})",
+      "total_us": 14192.771999999995,
+      "count": 8192
+    }
+  ],
+  "steps": [
+    {
+      "span_us": 15035.55615234375,
+      "busy_us": 5971.49560546875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 20565.77001953125,
+      "busy_us": 5963.3017578125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 51293.97412109375,
+      "busy_us": 5956.7607421875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 36788.47509765625,
+      "busy_us": 5954.4111328125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 23617.90478515625,
+      "busy_us": 5942.322265625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 27931.048828125,
+      "busy_us": 5952.3623046875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24918.0498046875,
+      "busy_us": 5958.7001953125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 38034.60302734375,
+      "busy_us": 5966.77783203125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 41734.55517578125,
+      "busy_us": 5955.02099609375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 26822.10693359375,
+      "busy_us": 6285.04345703125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25197.47802734375,
+      "busy_us": 5958.5927734375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28802.2919921875,
+      "busy_us": 5955.693359375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24204.18603515625,
+      "busy_us": 5956.427734375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 23988.662109375,
+      "busy_us": 5963.9716796875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 30640.171875,
+      "busy_us": 5955.94140625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25493.19384765625,
+      "busy_us": 5955.71044921875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25911.630859375,
+      "busy_us": 5958.1787109375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 26095.05712890625,
+      "busy_us": 6125.5107421875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 38588.40185546875,
+      "busy_us": 5964.28369140625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 100904.69091796875,
+      "busy_us": 5995.6064453125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24778.97607421875,
+      "busy_us": 5959.5341796875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 41792.8271484375,
+      "busy_us": 5966.49658203125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25414.537109375,
+      "busy_us": 5955.60546875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24187.60888671875,
+      "busy_us": 5950.50390625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28024.77783203125,
+      "busy_us": 5952.82666015625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24390.10791015625,
+      "busy_us": 5951.83056640625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24975.3310546875,
+      "busy_us": 5957.021484375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 61956.703125,
+      "busy_us": 5959.23974609375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24242.330078125,
+      "busy_us": 5952.26904296875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24245.94580078125,
+      "busy_us": 5956.73095703125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28285.005859375,
+      "busy_us": 5956.3046875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24285.59423828125,
+      "busy_us": 5953.724609375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 75285.93017578125,
+      "busy_us": 5962.55029296875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24360.02685546875,
+      "busy_us": 5953.333984375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24927.330078125,
+      "busy_us": 5953.25537109375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24234.4248046875,
+      "busy_us": 5951.56201171875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 87456.1982421875,
+      "busy_us": 5967.1923828125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 40464.3310546875,
+      "busy_us": 5958.6005859375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25604.5869140625,
+      "busy_us": 5962.80810546875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 29513.5009765625,
+      "busy_us": 5967.59228515625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 29010.67919921875,
+      "busy_us": 5948.8720703125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 29342.2041015625,
+      "busy_us": 5959.4140625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25906.2880859375,
+      "busy_us": 5954.3642578125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28624.85009765625,
+      "busy_us": 5944.9775390625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24786.01708984375,
+      "busy_us": 5950.2763671875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25687.7880859375,
+      "busy_us": 5964.7333984375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25690.85986328125,
+      "busy_us": 5959.66943359375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28006.921875,
+      "busy_us": 5972.2353515625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24586.7822265625,
+      "busy_us": 5965.2783203125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28267.7890625,
+      "busy_us": 5957.72021484375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24740.76806640625,
+      "busy_us": 5960.7509765625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 49959.9091796875,
+      "busy_us": 5978.31982421875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 85142.15185546875,
+      "busy_us": 5961.1943359375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24153.56103515625,
+      "busy_us": 5944.07373046875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24489.6611328125,
+      "busy_us": 5949.62841796875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 70408.52392578125,
+      "busy_us": 5951.87158203125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 30034.72412109375,
+      "busy_us": 5960.00634765625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24228.41015625,
+      "busy_us": 5951.123046875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 23968.72607421875,
+      "busy_us": 5946.08203125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 42558.30908203125,
+      "busy_us": 5948.158203125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 42323.36181640625,
+      "busy_us": 5955.67138671875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24398.14013671875,
+      "busy_us": 5954.1923828125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28240.97314453125,
+      "busy_us": 5954.50732421875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24963.13916015625,
+      "busy_us": 5953.5595703125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 23923.158203125,
+      "busy_us": 5949.55322265625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24142.07177734375,
+      "busy_us": 5947.6376953125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24721.087890625,
+      "busy_us": 5956.40087890625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25182.31005859375,
+      "busy_us": 6319.779296875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 27885.16015625,
+      "busy_us": 5951.6806640625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25117.34912109375,
+      "busy_us": 5955.609375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25688.97216796875,
+      "busy_us": 6262.3681640625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24653.02294921875,
+      "busy_us": 6137.19873046875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24373.56298828125,
+      "busy_us": 5956.326171875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24051.54296875,
+      "busy_us": 5953.408203125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 34731.2001953125,
+      "busy_us": 5961.56494140625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28905.205078125,
+      "busy_us": 5948.25537109375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24531.51708984375,
+      "busy_us": 5949.72509765625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 30457.0341796875,
+      "busy_us": 5960.49462890625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28418.51123046875,
+      "busy_us": 5952.97607421875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 29740.416015625,
+      "busy_us": 5964.5908203125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 62785.64111328125,
+      "busy_us": 6150.095703125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 109025.43603515625,
+      "busy_us": 6307.95556640625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 38378.35107421875,
+      "busy_us": 5957.2587890625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24684.86376953125,
+      "busy_us": 5952.236328125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24861.6982421875,
+      "busy_us": 5961.21435546875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 23703.44189453125,
+      "busy_us": 5955.263671875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25106.85302734375,
+      "busy_us": 5954.83447265625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 30515.337890625,
+      "busy_us": 5951.54443359375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 84032.60205078125,
+      "busy_us": 5959.00244140625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24722.080078125,
+      "busy_us": 5957.45654296875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24703.3271484375,
+      "busy_us": 5950.185546875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 50580.68408203125,
+      "busy_us": 5949.9990234375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 58287.2158203125,
+      "busy_us": 5956.8271484375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 23896.72607421875,
+      "busy_us": 5951.763671875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 42152.32080078125,
+      "busy_us": 5956.43701171875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 71647.80322265625,
+      "busy_us": 5968.7109375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25428.52099609375,
+      "busy_us": 5957.67138671875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24642.462890625,
+      "busy_us": 5951.1845703125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24608.57421875,
+      "busy_us": 5964.50390625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24049.94287109375,
+      "busy_us": 5950.54345703125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 81289.623046875,
+      "busy_us": 6134.16650390625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 49301.30810546875,
+      "busy_us": 6123.23779296875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 26244.0830078125,
+      "busy_us": 5962.3681640625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 36466.68017578125,
+      "busy_us": 6326.8857421875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24479.0048828125,
+      "busy_us": 5958.7353515625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24806.208984375,
+      "busy_us": 5967.46240234375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 83334.162109375,
+      "busy_us": 6280.58447265625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 46204.02001953125,
+      "busy_us": 5953.12890625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24837.76123046875,
+      "busy_us": 5948.65576171875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 23847.4130859375,
+      "busy_us": 5950.18603515625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 73859.44677734375,
+      "busy_us": 5956.71337890625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 27620.77294921875,
+      "busy_us": 5955.0107421875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24220.2490234375,
+      "busy_us": 5950.98046875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 28225.72314453125,
+      "busy_us": 5946.6787109375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 23922.67578125,
+      "busy_us": 5954.27001953125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24126.23095703125,
+      "busy_us": 5953.93994140625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 23777.39501953125,
+      "busy_us": 5949.23779296875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 90472.8251953125,
+      "busy_us": 5958.9765625,
+      "kernels": 1565
+    },
+    {
+      "span_us": 84545.3720703125,
+      "busy_us": 5961.4873046875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 39400.43310546875,
+      "busy_us": 5960.39794921875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 68758.26708984375,
+      "busy_us": 5968.396484375,
+      "kernels": 1565
+    },
+    {
+      "span_us": 37886.2421875,
+      "busy_us": 5958.60205078125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24072.40576171875,
+      "busy_us": 5946.607421875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 24457.8818359375,
+      "busy_us": 5949.498046875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25583.4609375,
+      "busy_us": 5963.44921875,
+      "kernels": 1565
+    },
+    {
+      "span_us": 26972.5,
+      "busy_us": 5956.48486328125,
+      "kernels": 1565
+    },
+    {
+      "span_us": 25189.02587890625,
+      "busy_us": 5944.40185546875,
+      "kernels": 1565
+    }
+  ],
+  "config": {
+    "model_name": "HuggingFaceTB/SmolLM2-360M-Instruct",
+    "batch_size": 4,
+    "input_len": 512,
+    "output_len": 128,
+    "seed": 0,
+    "dtype": "bfloat16",
+    "warmup_runs": 6,
+    "measure_runs": 5,
+    "regression": "none",
+    "decode_mode": "static"
+  },
+  "input_fingerprint": "da0c445681a2f6e6",
+  "untraced_itl_us_p50": 16188.543319702148,
+  "profiler_overhead": 0.5936315865561177
+}
