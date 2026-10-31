@@ -46,3 +46,8 @@ def test_config_is_immutable() -> None:
     config = BenchmarkConfig()
     with pytest.raises(AttributeError):
         config.batch_size = 2  # type: ignore[misc]
+
+
+def test_rejects_cuda_graph_with_no_kv_cache() -> None:
+    with pytest.raises(ConfigError):
+        BenchmarkConfig(decode_mode="cuda_graph", regression="no_kv_cache")

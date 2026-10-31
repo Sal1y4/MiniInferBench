@@ -93,13 +93,20 @@ def run_benchmark(
         config=config,
         input_fingerprint=fingerprint(prompts),
         correctness=check_correctness(
-            model, input_ids, config.output_len, config.regression, tie_tolerance
+            model,
+            input_ids,
+            config.output_len,
+            config.regression,
+            tie_tolerance,
+            config.decode_mode,
         ),
     )
     if not result.correctness.matches:
         return result  # timing an incorrect implementation proves nothing
     for _ in range(config.warmup_runs):
-        measure_run(model, input_ids, config.output_len, config.regression)
+        measure_run(model, input_ids, config.output_len, config.regression, config.decode_mode)
     for _ in range(config.measure_runs):
-        result.runs.append(measure_run(model, input_ids, config.output_len, config.regression))
+        result.runs.append(
+            measure_run(model, input_ids, config.output_len, config.regression, config.decode_mode)
+        )
     return result

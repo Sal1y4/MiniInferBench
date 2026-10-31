@@ -105,12 +105,18 @@ def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
     prompts = make_prompts(config.batch_size, config.input_len, vocab, config.seed, special_ids)
     input_ids = prompts.to(device)
     for _ in range(max(config.warmup_runs, 1)):
-        measure_run(model, input_ids, config.output_len, config.regression)
+        measure_run(model, input_ids, config.output_len, config.regression, config.decode_mode)
     # Untraced baseline right before the traced pass, to measure profiler overhead.
-    baseline = measure_run(model, input_ids, config.output_len, config.regression)
+    baseline = measure_run(
+        model, input_ids, config.output_len, config.regression, config.decode_mode
+    )
     name = f"bs{config.batch_size}-in{config.input_len}-out{config.output_len}"
+    if config.decode_mode != "eager":
+        name += f"-{config.decode_mode}"
     trace_path = out_dir / f"{name}.trace.json"
-    capture_trace(model, input_ids, config.output_len, trace_path, config.regression)
+    capture_trace(
+        model, input_ids, config.output_len, trace_path, config.regression, config.decode_mode
+    )
     report = analyze(trace_path)
     untraced_us = metrics.percentile(baseline.itl_ms, 50) * 1000
     report |= {
@@ -129,6 +135,7 @@ def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
         "untraced_itl_us_p50",
         "profiler_overhead",
         "kernel_launches_total",
+        "graph_launches_total",
         "host_wait_calls_total",
     )
     print(json.dumps({k: report[k] for k in keys}, indent=2))

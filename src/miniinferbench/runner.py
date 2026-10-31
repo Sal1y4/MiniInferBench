@@ -15,13 +15,16 @@ Measurement boundaries for one run (all inputs are already on the device):
 
 from __future__ import annotations
 
+import weakref
+from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import torch
-from transformers import DynamicCache, GenerationConfig, PreTrainedModel
+from transformers import DynamicCache, GenerationConfig, PreTrainedModel, StaticCache
 
-from miniinferbench.config import Regression
+from miniinferbench.config import DecodeMode, Regression
 from miniinferbench.timing import EventTimeline, WallClock
 
 # Deliberate slowdowns for the regression case study. Each one keeps the output
@@ -56,6 +59,54 @@ def _next_token(logits: torch.Tensor) -> torch.Tensor:
     return logits[:, -1, :].argmax(dim=-1, keepdim=True)
 
 
+# Optional wrapper around each phase ("prefill", "decode_step"), e.g. the
+# profiler's record_function. Defaults to doing nothing.
+PhaseScope = Callable[[str], AbstractContextManager[Any]]
+
+
+def _no_scope(_: str) -> AbstractContextManager[None]:
+    return nullcontext()
+
+
+@dataclass
+class _GraphState:
+    forward: Callable[..., Any]
+    caches: dict[tuple[int, int], StaticCache]
+
+
+# One compiled forward per model, plus one static cache per (batch, length),
+# reused across runs: CUDA graphs replay fixed memory addresses, so the cache
+# must stay where it was when the graph was recorded.
+_GRAPH_STATE: weakref.WeakKeyDictionary[PreTrainedModel, _GraphState] = weakref.WeakKeyDictionary()
+
+
+def _graph_state(model: PreTrainedModel, device: torch.device) -> _GraphState:
+    state = _GRAPH_STATE.get(model)
+    if state is None:
+        forward: Callable[..., Any] = model.forward
+        if device.type == "cuda":
+            # "reduce-overhead" captures each decode step as a CUDA graph and
+            # replays it with one launch instead of ~1,300. CPU has no CUDA
+            # graphs, so there the static-cache path runs eagerly (used by tests).
+            forward = torch.compile(model.forward, mode="reduce-overhead")
+        state = _GraphState(forward=forward, caches={})
+        _GRAPH_STATE[model] = state
+    return state
+
+
+def _static_cache(
+    state: _GraphState, model: PreTrainedModel, batch_size: int, max_len: int
+) -> StaticCache:
+    key = (batch_size, max_len)
+    cache = state.caches.get(key)
+    if cache is None:
+        cache = StaticCache(config=model.config, max_cache_len=max_len)
+        state.caches[key] = cache
+    else:
+        cache.reset()
+    return cache
+
+
 @torch.inference_mode()
 def greedy_decode(
     model: PreTrainedModel,
@@ -63,38 +114,71 @@ def greedy_decode(
     output_len: int,
     timeline: EventTimeline | None = None,
     regression: Regression = "none",
+    decode_mode: DecodeMode = "eager",
+    phase: PhaseScope = _no_scope,
 ) -> torch.Tensor:
     """Generate exactly `output_len` tokens per sequence; returns `[batch, output_len]`.
 
     EOS is ignored on purpose so every run does the same amount of work.
     If `timeline` is given, it is marked before prefill and after every token.
     `regression` injects a known slowdown (see `Regression`); "none" in normal use.
+    `decode_mode="cuda_graph"` uses a static KV cache and replays each decode
+    step as a CUDA graph; prefill stays eager in both modes.
     """
     if output_len < 1:
         raise ValueError(f"output_len must be >= 1, got {output_len}")
-    cache = DynamicCache()
+    if decode_mode == "cuda_graph" and regression == "no_kv_cache":
+        raise ValueError("no_kv_cache cannot be combined with cuda_graph decoding")
+    batch_size, input_len = input_ids.shape
+    device = input_ids.device
+    if decode_mode == "cuda_graph":
+        state = _graph_state(model, device)
+        cache: DynamicCache | StaticCache = _static_cache(
+            state, model, batch_size, input_len + output_len
+        )
+        decode_forward = state.forward
+    else:
+        cache = DynamicCache()
+        decode_forward = model.forward
     if timeline is not None:
         timeline.mark()
     # logits_to_keep=1: only the last position's logits are needed. Without it
     # prefill materializes batch x input_len x vocab logits, which can cost GBs.
-    out = model(input_ids=input_ids, past_key_values=cache, use_cache=True, logits_to_keep=1)
-    token = _next_token(out.logits)
+    with phase("prefill"):
+        out = model(
+            input_ids=input_ids,
+            past_key_values=cache,
+            use_cache=True,
+            logits_to_keep=1,
+            cache_position=torch.arange(input_len, device=device),
+        )
+        token = _next_token(out.logits)
     tokens = [token]
     if timeline is not None:
         timeline.mark()
     sequence = input_ids
-    for _ in range(output_len - 1):
-        if regression == "no_kv_cache":
-            # Recompute attention over the whole sequence every step.
-            sequence = torch.cat([sequence, token], dim=1)
-            out = model(input_ids=sequence, use_cache=False, logits_to_keep=1)
-        else:
-            out = model(input_ids=token, past_key_values=cache, use_cache=True)
-        token = _next_token(out.logits)
-        if regression == "host_sync_each_step":
-            # A common real bug: copying each token to the host (e.g. to check
-            # for EOS) forces the CPU to wait for the GPU every step.
-            token.cpu()
+    for step in range(output_len - 1):
+        with phase("decode_step"):
+            if regression == "no_kv_cache":
+                # Recompute attention over the whole sequence every step.
+                sequence = torch.cat([sequence, token], dim=1)
+                out = model(input_ids=sequence, use_cache=False, logits_to_keep=1)
+            else:
+                if decode_mode == "cuda_graph" and device.type == "cuda":
+                    # The previous step's graph outputs are consumed already.
+                    torch.compiler.cudagraph_mark_step_begin()  # type: ignore[no-untyped-call]
+                position = torch.tensor([input_len + step], device=device)
+                out = decode_forward(
+                    input_ids=token,
+                    past_key_values=cache,
+                    use_cache=True,
+                    cache_position=position,
+                )
+            token = _next_token(out.logits)
+            if regression == "host_sync_each_step":
+                # A common real bug: copying each token to the host (e.g. to check
+                # for EOS) forces the CPU to wait for the GPU every step.
+                token.cpu()
         tokens.append(token)
         if timeline is not None:
             timeline.mark()
@@ -106,6 +190,7 @@ def measure_run(
     input_ids: torch.Tensor,
     output_len: int,
     regression: Regression = "none",
+    decode_mode: DecodeMode = "eager",
 ) -> RunSamples:
     """Run one timed generation and return its raw samples."""
     device = input_ids.device
@@ -114,7 +199,7 @@ def measure_run(
     timeline = EventTimeline(device)
     wall = WallClock(device)
     wall.start()
-    greedy_decode(model, input_ids, output_len, timeline, regression=regression)
+    greedy_decode(model, input_ids, output_len, timeline, regression, decode_mode)
     e2e_wall_ms = wall.stop()
     gaps = timeline.finish()
     peak = torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None
@@ -219,6 +304,7 @@ def check_correctness(
     output_len: int,
     regression: Regression = "none",
     tie_tolerance: float = DEFAULT_TIE_TOLERANCE,
+    decode_mode: DecodeMode = "eager",
 ) -> CorrectnessReport:
     """Compare our loop with `generate()` token by token.
 
@@ -229,7 +315,9 @@ def check_correctness(
     mismatch. Tokens after the first divergence are not compared, because
     the two continuations no longer share a prefix.
     """
-    ours = greedy_decode(model, input_ids, output_len, regression=regression)
+    ours = greedy_decode(
+        model, input_ids, output_len, regression=regression, decode_mode=decode_mode
+    )
     reference = reference_generate(model, input_ids, output_len)
     divergences = []
     for seq in range(ours.shape[0]):

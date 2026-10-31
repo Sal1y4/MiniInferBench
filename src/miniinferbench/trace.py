@@ -28,26 +28,27 @@ from typing import Any
 
 import torch
 from torch.profiler import ProfilerActivity, profile, record_function
-from transformers import DynamicCache, PreTrainedModel
+from transformers import PreTrainedModel
 
-from miniinferbench.config import Regression
+from miniinferbench.config import DecodeMode, Regression
+from miniinferbench.runner import greedy_decode
 
 DECODE_STEP = "decode_step"
 PREFILL = "prefill"
 
 
-@torch.inference_mode()
 def capture_trace(
     model: PreTrainedModel,
     input_ids: torch.Tensor,
     output_len: int,
     path: Path,
     regression: Regression = "none",
+    decode_mode: DecodeMode = "eager",
 ) -> None:
     """Run one traced generation with each phase wrapped in record_function.
 
-    Supports the "host_sync_each_step" regression so its effect is visible in
-    the trace; "no_kv_cache" is not traced (steps grow with sequence length).
+    Uses the same loop as the timed runs, so a trace shows exactly what was
+    measured. "no_kv_cache" is not traced (its steps grow with sequence length).
     """
     if regression == "no_kv_cache":
         raise ValueError("tracing the no_kv_cache regression is not supported")
@@ -55,18 +56,14 @@ def capture_trace(
     if input_ids.device.type == "cuda":
         activities.append(ProfilerActivity.CUDA)
     with profile(activities=activities) as prof:
-        cache = DynamicCache()
-        with record_function(PREFILL):
-            out = model(
-                input_ids=input_ids, past_key_values=cache, use_cache=True, logits_to_keep=1
-            )
-            token = out.logits[:, -1, :].argmax(dim=-1, keepdim=True)
-        for _ in range(output_len - 1):
-            with record_function(DECODE_STEP):
-                out = model(input_ids=token, past_key_values=cache, use_cache=True)
-                token = out.logits[:, -1, :].argmax(dim=-1, keepdim=True)
-                if regression == "host_sync_each_step":
-                    token.cpu()
+        greedy_decode(
+            model,
+            input_ids,
+            output_len,
+            regression=regression,
+            decode_mode=decode_mode,
+            phase=record_function,
+        )
         if input_ids.device.type == "cuda":
             torch.cuda.synchronize()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,6 +128,13 @@ def count_launches(events: Sequence[dict[str, Any]]) -> int:
     )
 
 
+def count_graph_launches(events: Sequence[dict[str, Any]]) -> int:
+    """CUDA graph replays: one launch that runs a whole recorded sequence of kernels."""
+    return sum(
+        1 for e in events if e.get("cat") == "cuda_runtime" and "GraphLaunch" in e.get("name", "")
+    )
+
+
 def count_host_waits(events: Sequence[dict[str, Any]]) -> int:
     """CPU-side calls that block on the device: synchronizes and device-to-host copies."""
     return sum(
@@ -156,6 +160,7 @@ def analyze(trace_path: Path) -> dict[str, Any]:
         "step_busy_fraction_median": statistics.median(s.busy_fraction for s in steady),
         "kernels_per_step_median": statistics.median(s.kernels for s in steady),
         "kernel_launches_total": count_launches(events),
+        "graph_launches_total": count_graph_launches(events),
         "host_wait_calls_total": count_host_waits(events),
         "top_kernels": [
             {"name": n, "total_us": us, "count": c} for n, us, c in top_kernels(events)
