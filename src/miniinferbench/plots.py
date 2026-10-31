@@ -236,9 +236,12 @@ def plot_modes(
     model = head["config"]["model_name"].split("/")[-1]
     sub = f"{model}, {head['config']['dtype']}, {gpu}, output {output_len} tokens"
     written = []
+    # One color per mode in both figures; batch size is told apart by line style.
+    colors = dict(zip(points, SERIES, strict=False))
 
     fig, ax = plt.subplots(figsize=(7.5, 4.5))
-    for color, (label, pts) in zip(SERIES, points.items(), strict=False):
+    for label, pts in points.items():
+        color = colors[label]
         rows = sorted(
             (
                 p
@@ -265,12 +268,13 @@ def plot_modes(
         "Decode tokens/s",
         sub + f", input {input_len}",
     )
+    ax.set_ylim(bottom=0)
     ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9)
     written.append(_save(fig, out_dir, "modes_throughput_vs_batch.png"))
 
     fig, ax = plt.subplots(figsize=(7.5, 4.5))
-    lines = [(label, bs) for label in points for bs in (1, 8)]
-    for color, (label, bs) in zip(SERIES, lines, strict=False):
+    styles = {1: "-", 8: "--"}
+    for label, bs in [(label, bs) for label in points for bs in styles]:
         rows = sorted(
             (
                 p
@@ -283,7 +287,8 @@ def plot_modes(
         ax.plot(
             xs,
             [p["summary"]["itl_ms_p50"] for p in rows],
-            color=color,
+            color=colors[label],
+            linestyle=styles[bs],
             linewidth=2,
             marker="o",
             markersize=6,

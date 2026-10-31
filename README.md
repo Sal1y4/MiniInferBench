@@ -41,8 +41,8 @@ All 36 points match `generate()` exactly; 20 are `ok`, 16 `unstable`
 - Prefill of 128 tokens at batch 1 (TTFT 14.7 ms) costs about the same as one
   decode step: both are dominated by the same per-layer launch sequence.
 
-The obvious next experiment is to cut launches with a static KV cache plus
-CUDA Graphs or `torch.compile(mode="reduce-overhead")`. It is not done yet.
+The direct test of this finding is to remove the launches; see
+[Testing the finding with CUDA Graphs](#testing-the-finding-with-cuda-graphs).
 
 ![Prefill vs one decode step](docs/figures/prefill_vs_decode.png)
 
@@ -50,6 +50,48 @@ More figures: [latency vs batch](docs/figures/latency_vs_batch.png),
 [prefill vs input length](docs/figures/prefill_vs_input.png),
 [ITL distribution](docs/figures/itl_distribution.png),
 [memory: measured vs estimated](docs/figures/memory.png).
+
+## Testing the finding with CUDA Graphs
+
+If decode is launch-bound, replaying each decode step as one CUDA graph
+instead of ~1,300 separate launches should cut ITL to roughly the GPU's busy
+time. `decode_mode: "cuda_graph"` does that: a static KV cache plus
+`torch.compile(mode="reduce-overhead")` for decode steps; prefill stays eager.
+Both modes were swept at the same commit, output 128
+([`results-published/5070-360m-modes.jsonl`](results-published/5070-360m-modes.jsonl)).
+
+| Batch | Input | ITL P50 eager | ITL P50 CUDA graph | Decode tok/s eager | Decode tok/s CUDA graph |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 128 | 14.35 ms | 2.92 ms | 69.6 | 341.0 |
+| 1 | 1024 | 14.58 ms | 4.37 ms | 67.1 | 228.2 |
+| 4 | 512 | 14.73 ms | 4.66 ms | 265.2 | 854.5 |
+| 8 | 128 | 14.53 ms | 3.92 ms | 544.8 | 2028.2 |
+| 8 | 1024 | 14.33 ms | 9.11 ms | 556.7 | 874.7 |
+
+![ITL by decode mode](docs/figures/modes_itl_vs_input.png)
+
+- **The prediction held.** Decode got 1.6x to 4.9x faster, and at batch 4,
+  input 512 the traced step dropped from 1,334 kernel launches to one graph
+  launch, with the GPU busy 95% of the step instead of 19%
+  ([eager](results-published/traces/eager-bs4-in512-out128.analysis.json),
+  [CUDA graph](results-published/traces/cuda_graph-bs4-in512-out128-cuda_graph.analysis.json)).
+  The batch-1, input-128 ITL of 2.9 ms is close to the 3.6 ms of GPU busy time
+  the eager trace showed.
+- **The bottleneck moved to the GPU.** In eager mode ITL is flat at ~14.5 ms
+  whatever the batch or input length. With graphs it grows with both (batch 8:
+  3.9 ms at input 128, 9.1 ms at input 1024), because reading the KV cache now
+  shows. The largest GPU cost after the matmuls is attention: with a static
+  cache SDPA uses the memory-efficient kernel with an explicit mask over the
+  full cache length (175 ms total in the trace vs 42 ms for flash split-KV in
+  eager mode), so that is the next thing to fix.
+- **Correctness under a different kernel path.** 8 of 12 graph-mode points
+  diverged from `generate()` somewhere, always between tokens whose logits
+  were tied in bf16 or one bf16 step apart (largest gap 0.19 logits, within
+  the 0.25 tolerance); a float32 control run at batch 4 matched exactly. These
+  points are recorded as `near_tie` with every divergence kept.
+- **Costs.** Peak memory is higher (2.2 GiB vs 1.2 GiB at batch 8, input 1024:
+  the static cache and the graph memory pool), compilation adds several seconds,
+  and graph mode needs longer warmup (6 runs instead of 2).
 
 ## Case study: can the harness catch a regression?
 
@@ -175,6 +217,10 @@ ruff check . && ruff format --check . && mypy && pytest -q
   (7 runs each, not a published record) had `generate()` about 5% slower end to
   end with identical tokens, so these numbers are a little optimistic for
   users who call `generate()` directly.
+- **TTFT in CUDA graph mode has random stalls.** Prefill is eager in both
+  modes, yet graph-mode runs show occasional 20-60 ms TTFT outliers (for
+  batch 1, input 128, three of five runs). Records report the median TTFT,
+  but that point's median is still an outlier; the cause is not yet known.
 - **Synthetic prompts, equal length, no padding.** Real traffic is not like this.
 - **Correctness is checked against `generate()`**, which is itself code with
   configuration pitfalls (see above). Matching it proves agreement, not truth.
