@@ -131,15 +131,24 @@ def greedy_decode(
         raise ValueError("no_kv_cache cannot be combined with cuda_graph decoding")
     batch_size, input_len = input_ids.shape
     device = input_ids.device
-    if decode_mode == "cuda_graph":
+    static = decode_mode == "cuda_graph"
+    if static:
         state = _graph_state(model, device)
         cache: DynamicCache | StaticCache = _static_cache(
             state, model, batch_size, input_len + output_len
         )
         decode_forward = state.forward
+        # Built once on the device: creating a position tensor from a Python
+        # int every step would be a host-to-device copy per step.
+        positions = torch.arange(input_len + output_len, device=device)
     else:
         cache = DynamicCache()
         decode_forward = model.forward
+
+    def static_kwargs(start: int, stop: int) -> dict[str, torch.Tensor]:
+        # A static cache needs explicit write positions; a dynamic one appends.
+        return {"cache_position": positions[start:stop]} if static else {}
+
     if timeline is not None:
         timeline.mark()
     # logits_to_keep=1: only the last position's logits are needed. Without it
@@ -150,7 +159,7 @@ def greedy_decode(
             past_key_values=cache,
             use_cache=True,
             logits_to_keep=1,
-            cache_position=torch.arange(input_len, device=device),
+            **static_kwargs(0, input_len),
         )
         token = _next_token(out.logits)
     tokens = [token]
@@ -164,15 +173,14 @@ def greedy_decode(
                 sequence = torch.cat([sequence, token], dim=1)
                 out = model(input_ids=sequence, use_cache=False, logits_to_keep=1)
             else:
-                if decode_mode == "cuda_graph" and device.type == "cuda":
+                if static and device.type == "cuda":
                     # The previous step's graph outputs are consumed already.
                     torch.compiler.cudagraph_mark_step_begin()  # type: ignore[no-untyped-call]
-                position = torch.tensor([input_len + step], device=device)
                 out = decode_forward(
                     input_ids=token,
                     past_key_values=cache,
                     use_cache=True,
-                    cache_position=position,
+                    **static_kwargs(input_len + step, input_len + step + 1),
                 )
             token = _next_token(out.logits)
             if regression == "host_sync_each_step":

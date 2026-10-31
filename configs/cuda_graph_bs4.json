@@ -5,7 +5,7 @@
   "output_len": 128,
   "seed": 0,
   "dtype": "bfloat16",
-  "warmup_runs": 3,
+  "warmup_runs": 6,
   "measure_runs": 5,
   "regression": "none",
   "decode_mode": "cuda_graph"
