@@ -248,9 +248,18 @@ def reference_generate(
         pad_token_id=0,
     )
     attention_mask = torch.ones_like(input_ids)
-    out: torch.Tensor = model.generate(
-        input_ids=input_ids, attention_mask=attention_mask, generation_config=config
-    )
+    # generate() fills unset fields from model.generation_config, which comes
+    # from the checkpoint's generation_config.json. Qwen2.5 ships
+    # repetition_penalty=1.1 there, which changed the reference's tokens.
+    # Swap in the clean config so no checkpoint default can alter the logits.
+    saved = model.generation_config
+    model.generation_config = config
+    try:
+        out: torch.Tensor = model.generate(
+            input_ids=input_ids, attention_mask=attention_mask, generation_config=config
+        )
+    finally:
+        model.generation_config = saved
     return out[:, input_ids.shape[1] :]
 
 

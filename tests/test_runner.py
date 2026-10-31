@@ -41,6 +41,25 @@ def test_reference_does_not_suppress_eos(model: LlamaForCausalLM) -> None:
     assert report.kind == "exact", report.divergences
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("repetition_penalty", 1.5), ("no_repeat_ngram_size", 1), ("temperature", 0.5)],
+)
+def test_reference_ignores_model_generation_defaults(
+    model: LlamaForCausalLM, field: str, value: float
+) -> None:
+    # Regression test: Qwen2.5 ships repetition_penalty=1.1 in its
+    # generation_config.json, and generate() merged it into the reference.
+    input_ids = make_prompts(2, 8, vocab_size=128, seed=4)
+    saved = getattr(model.generation_config, field)
+    setattr(model.generation_config, field, value)
+    try:
+        report = check_correctness(model, input_ids, output_len=8)
+    finally:
+        setattr(model.generation_config, field, saved)
+    assert report.kind == "exact", report.divergences
+
+
 def test_detects_a_wrong_loop(model: LlamaForCausalLM, monkeypatch: pytest.MonkeyPatch) -> None:
     # Fault injection: a "decoder" that always returns token 0 must be caught.
     import miniinferbench.runner as runner
