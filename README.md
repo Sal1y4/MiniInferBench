@@ -280,10 +280,11 @@ optimum-benchmark, and MLPerf Inference for standardized results. Most of them
 measure from the outside (send requests, time responses) and are the right
 choice for serving load tests or comparing engines.
 
-This project measures from inside the generation loop, which those tools are
-not built for:
+Engines also ship offline tools that run one fixed batch and look at
+kernel-level latency, such as SGLang's `bench_one_batch`. What this project adds is not a capability those tools lack but a
+combination aimed at studying one implementation:
 
-- per-step GPU timestamps (CUDA events between tokens), not request latency;
+- per-step GPU timestamps (CUDA events between tokens);
 - a token-by-token correctness check against `generate()` before any timing;
 - swappable implementations of the loop itself, which is what made the
   eager / static / compiled / CUDA graph ablation possible;
