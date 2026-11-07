@@ -1,0 +1,10 @@
+{
+  "model_name": "HuggingFaceTB/SmolLM2-360M-Instruct",
+  "batch_size": 1,
+  "input_len": 128,
+  "output_len": 128,
+  "seed": 0,
+  "dtype": "bfloat16",
+  "warmup_runs": 6,
+  "measure_runs": 5
+}
