@@ -40,6 +40,13 @@ def load_points(results: Path, tag: str) -> list[Record]:
     return points
 
 
+def _points_or_empty(results: Path, tag: str) -> list[Record]:
+    try:
+        return load_points(results, tag)
+    except ValueError:
+        return []
+
+
 def _style(ax: Axes, title: str, xlabel: str, ylabel: str, subtitle: str) -> None:
     ax.set_facecolor(SURFACE)
     ax.figure.set_facecolor(SURFACE)
@@ -222,14 +229,26 @@ def plot_all(results: Path, tag: str, out_dir: Path, output_len: int = 128) -> l
 
 
 def plot_modes(
-    results: Path,
+    results: Path | Sequence[Path],
     tags: dict[str, str],
     out_dir: Path,
     input_len: int = 512,
     output_len: int = 128,
+    prefix: str = "modes",
 ) -> list[Path]:
-    """Compare decode modes (e.g. eager vs cuda_graph), one sweep tag per mode."""
-    points = {label: load_points(results, tag) for label, tag in tags.items()}
+    """Compare decode modes (e.g. eager vs cuda_graph), one sweep tag per mode.
+
+    Tags may live in different files (e.g. HF and vLLM records); each tag is
+    read from every file given.
+    """
+    files = [results] if isinstance(results, Path) else list(results)
+    points = {
+        label: [p for f in files if f.exists() for p in _points_or_empty(f, tag)]
+        for label, tag in tags.items()
+    }
+    for label, pts in points.items():
+        if not pts:
+            raise ValueError(f"no usable runs for tag {tags[label]!r} in {files}")
     out_dir.mkdir(parents=True, exist_ok=True)
     head = next(iter(points.values()))[0]
     gpu = head["manifest"]["env"].get("gpu_name", "CPU")
@@ -270,7 +289,7 @@ def plot_modes(
     )
     ax.set_ylim(bottom=0)
     ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9)
-    written.append(_save(fig, out_dir, "modes_throughput_vs_batch.png"))
+    written.append(_save(fig, out_dir, f"{prefix}_throughput_vs_batch.png"))
 
     fig, ax = plt.subplots(figsize=(7.5, 4.5))
     styles = {1: "-", 8: "--"}
@@ -298,5 +317,5 @@ def plot_modes(
     _style(ax, "Inter-token latency by decode mode", "Input length (tokens)", "ITL P50 (ms)", sub)
     ax.set_ylim(bottom=0)
     ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9)
-    written.append(_save(fig, out_dir, "modes_itl_vs_input.png"))
+    written.append(_save(fig, out_dir, f"{prefix}_itl_vs_input.png"))
     return written

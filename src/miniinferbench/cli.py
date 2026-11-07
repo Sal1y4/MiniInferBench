@@ -69,8 +69,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="LABEL=TAG",
         help="e.g. --tag eager=my-eager-sweep --tag cuda_graph=my-graph-sweep",
     )
-    modes.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
+    modes.add_argument("--results", type=Path, nargs="+", default=[Path("results/sweep.jsonl")])
     modes.add_argument("--out", type=Path, default=Path("docs/figures"))
+    modes.add_argument("--prefix", default="modes", help="figure file name prefix")
 
     table = sub.add_parser("table", help="print one sweep tag as a Markdown table")
     table.add_argument("--tag", required=True)
@@ -241,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
         from miniinferbench.plots import plot_modes
 
         tags = dict(item.split("=", 1) for item in args.tag)
-        for path in plot_modes(args.results, tags, args.out):
+        for path in plot_modes(args.results, tags, args.out, prefix=args.prefix):
             print(path)
         return 0
     if args.command == "table":
