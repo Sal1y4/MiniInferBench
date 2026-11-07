@@ -7,6 +7,7 @@ from miniinferbench.vllm_backend import (
     VllmOptions,
     check_supported,
     samples_from_steps,
+    sampling_kwargs,
 )
 
 IDS = ("a", "b")
@@ -63,3 +64,13 @@ def test_hf_only_knobs_are_rejected() -> None:
 def test_memory_fraction_is_validated() -> None:
     with pytest.raises(ValueError):
         VllmOptions(gpu_memory_utilization=1.5)
+
+
+def test_sampling_does_not_mask_eos() -> None:
+    # Regression test: min_tokens made vLLM mask EOS, forcing the runner-up
+    # token wherever EOS was the argmax (~7 logits below best on SmolLM2).
+    kwargs = sampling_kwargs(128)
+    assert "min_tokens" not in kwargs
+    assert kwargs["ignore_eos"] is True
+    assert kwargs["max_tokens"] == 128
+    assert kwargs["temperature"] == 0.0

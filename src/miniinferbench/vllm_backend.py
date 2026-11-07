@@ -131,6 +131,21 @@ def samples_from_steps(
     return samples, [tokens[rid] for rid in request_ids]
 
 
+def sampling_kwargs(output_len: int) -> dict[str, Any]:
+    """Greedy, EOS ignored, exactly `output_len` tokens, no detokenization."""
+    # No min_tokens: vLLM's min-tokens processor masks EOS to -inf until the
+    # minimum is reached, even with ignore_eos, so wherever EOS is the true
+    # argmax it forces the runner-up. Same trap as min_new_tokens in HF
+    # generate(); seen on SmolLM2 with a margin of ~7 logits. ignore_eos with
+    # max_tokens already yields exactly output_len tokens (checked per run).
+    return {
+        "temperature": 0.0,
+        "max_tokens": output_len,
+        "ignore_eos": True,
+        "detokenize": False,
+    }
+
+
 def _import_vllm() -> Any:
     # In-process engine: step() then runs scheduling, the forward pass and
     # output processing in this process, so host timestamps contain no
@@ -180,14 +195,7 @@ class VllmEngine:
         from vllm import SamplingParams
         from vllm.sampling_params import RequestOutputKind
 
-        params = SamplingParams(
-            temperature=0.0,
-            max_tokens=output_len,
-            min_tokens=output_len,
-            ignore_eos=True,
-            detokenize=False,
-            output_kind=RequestOutputKind.DELTA,
-        )
+        params = SamplingParams(**sampling_kwargs(output_len), output_kind=RequestOutputKind.DELTA)
         request_ids = []
         for row in prompts.tolist():
             request_id = f"req-{self._next_id}"
