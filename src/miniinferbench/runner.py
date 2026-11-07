@@ -356,7 +356,22 @@ def check_correctness(
     ours = greedy_decode(
         model, input_ids, output_len, regression=regression, decode_mode=decode_mode
     )
-    reference = reference_generate(model, input_ids, output_len)
+    return judge_tokens(model, input_ids, ours, tie_tolerance)
+
+
+def judge_tokens(
+    model: PreTrainedModel,
+    input_ids: torch.Tensor,
+    ours: torch.Tensor,
+    tie_tolerance: float = DEFAULT_TIE_TOLERANCE,
+) -> CorrectnessReport:
+    """Compare `[batch, output_len]` tokens from any backend with `generate()`.
+
+    `model` is the Hugging Face model used for the reference and for the
+    logit re-scoring of each divergence (see `check_correctness`).
+    """
+    ours = ours.to(input_ids.device)
+    reference = reference_generate(model, input_ids, ours.shape[1])
     divergences = []
     for seq in range(ours.shape[0]):
         diff = (ours[seq] != reference[seq]).nonzero()

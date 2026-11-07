@@ -40,7 +40,7 @@ class SweepGrid:
             yield replace(base, batch_size=bs, input_len=il, output_len=ol)
 
 
-def _point_key(config: dict[str, Any]) -> tuple[Any, ...]:
+def point_key(config: dict[str, Any]) -> tuple[Any, ...]:
     return tuple(sorted(config.items()))
 
 
@@ -50,7 +50,7 @@ def completed_points(results: Path, tag: str) -> set[tuple[Any, ...]]:
         return set()
     done = {RunStatus.OK.value, RunStatus.SKIPPED.value}
     return {
-        _point_key(r["config"])
+        point_key(r["config"])
         for r in read_records(results)
         if r.get("sweep_tag") == tag and r.get("status") in done
     }
@@ -95,7 +95,7 @@ def run_sweep(
     records = []
     for config in grid.configs(base):
         point = f"bs={config.batch_size} in={config.input_len} out={config.output_len}"
-        if _point_key(config.to_dict()) in done:
+        if point_key(config.to_dict()) in done:
             print(f"[already done] {point}")
             continue
         need = estimate(shape, config.batch_size, config.input_len, config.output_len)

@@ -41,7 +41,7 @@ class HarnessOptions:
     tie_tolerance: float = DEFAULT_TIE_TOLERANCE
 
 
-def _raw_samples(result: BenchmarkResult) -> dict[str, Any]:
+def raw_samples(result: BenchmarkResult) -> dict[str, Any]:
     return {
         "ttft_ms": [r.ttft_ms for r in result.runs],
         "itl_ms": [r.itl_ms for r in result.runs],
@@ -50,7 +50,7 @@ def _raw_samples(result: BenchmarkResult) -> dict[str, Any]:
     }
 
 
-def _correctness_evidence(result: BenchmarkResult) -> dict[str, Any]:
+def correctness_evidence(result: BenchmarkResult) -> dict[str, Any]:
     report = result.correctness
     return {
         "kind": report.kind,
@@ -106,10 +106,10 @@ def run_task(
         "status": status.value,
         "reason": reason,
         "input_fingerprint": result.input_fingerprint,
-        "correctness": _correctness_evidence(result),
+        "correctness": correctness_evidence(result),
     }
     if result.runs:
-        record |= {"summary": result.summary(), "raw": _raw_samples(result)}
+        record |= {"summary": result.summary(), "raw": raw_samples(result)}
     return record
 
 
