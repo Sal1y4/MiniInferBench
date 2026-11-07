@@ -40,6 +40,18 @@ def build_parser() -> argparse.ArgumentParser:
     sweep.add_argument("--output", type=int, nargs="+", default=[32, 128, 256])
     sweep.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
 
+    vllm = sub.add_parser("vllm", help="sweep the same grid on vLLM (run from .venv-vllm)")
+    vllm.add_argument("--config", type=Path, help="base config; grid values override it")
+    vllm.add_argument("--tag", required=True, help="names one curve; reuse it to resume")
+    vllm.add_argument("--batch", type=int, nargs="+", default=[1, 2, 4, 8])
+    vllm.add_argument("--input", type=int, nargs="+", default=[128, 512, 1024])
+    vllm.add_argument("--output", type=int, nargs="+", default=[32, 128, 256])
+    vllm.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
+    vllm.add_argument(
+        "--enforce-eager", action="store_true", help="no torch.compile and no CUDA graphs"
+    )
+    vllm.add_argument("--gpu-memory-utilization", type=float, default=0.4)
+
     trace = sub.add_parser("trace", help="capture and analyze a profiler trace for one config")
     trace.add_argument("--config", type=Path, help="JSON config file (defaults if omitted)")
     trace.add_argument("--out", type=Path, default=Path("traces"))
@@ -203,6 +215,17 @@ def main(argv: list[str] | None = None) -> int:
         base = BenchmarkConfig.load(args.config) if args.config else BenchmarkConfig()
         grid = SweepGrid(args.batch, args.input, args.output)
         records = run_sweep(base, grid, args.results, args.tag)
+        statuses = [r["status"] for r in records]
+        print({s: statuses.count(s) for s in sorted(set(statuses))})
+        return 0
+    if args.command == "vllm":
+        from miniinferbench.sweep import SweepGrid
+        from miniinferbench.vllm_backend import VllmOptions, run_vllm_sweep
+
+        base = BenchmarkConfig.load(args.config) if args.config else BenchmarkConfig()
+        grid = SweepGrid(args.batch, args.input, args.output)
+        vllm_options = VllmOptions(args.enforce_eager, args.gpu_memory_utilization)
+        records = run_vllm_sweep(base, grid, args.results, args.tag, vllm_options)
         statuses = [r["status"] for r in records]
         print({s: statuses.count(s) for s in sorted(set(statuses))})
         return 0

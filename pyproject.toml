@@ -60,7 +60,7 @@ follow_imports_for_stubs = true
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["matplotlib.*"]
+module = ["matplotlib.*", "vllm", "vllm.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
