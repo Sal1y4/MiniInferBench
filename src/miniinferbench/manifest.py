@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import platform
 import subprocess
 import sys
@@ -62,10 +63,24 @@ def environment() -> dict[str, Any]:
     return env
 
 
+def host_load() -> dict[str, Any]:
+    """1-minute load average and CPU count when the run started.
+
+    Decode here is bound by the host launching work, so other busy processes
+    on the machine move the numbers; this is the evidence for or against it.
+    """
+    try:
+        load_1m: float | None = os.getloadavg()[0]
+    except OSError:
+        load_1m = None
+    return {"load_avg_1m": load_1m, "cpu_count": os.cpu_count()}
+
+
 def build_manifest(run_id: str) -> dict[str, Any]:
     return {
         "run_id": run_id,
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         **git_state(),
         "env": environment(),
+        "host": host_load(),
     }

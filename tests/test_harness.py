@@ -33,6 +33,7 @@ def test_ok_run_has_evidence() -> None:
     record = run_task(CONFIG, CPU, tiny_loader)
     assert record["status"] == RunStatus.OK
     assert record["manifest"]["env"]["torch"] == torch.__version__
+    assert record["manifest"]["host"]["cpu_count"]
     assert len(record["raw"]["e2e_wall_ms"]) == 3
     assert len(record["raw"]["itl_ms"][0]) == 3  # output_len - 1 gaps per run
     assert record["input_fingerprint"]
