@@ -258,7 +258,7 @@ def plot_modes(
     # One color per mode in both figures; batch size is told apart by line style.
     colors = dict(zip(points, SERIES, strict=False))
 
-    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    fig, ax = plt.subplots(figsize=(9.5, 4.5))
     for label, pts in points.items():
         color = colors[label]
         rows = sorted(
@@ -288,10 +288,16 @@ def plot_modes(
         sub + f", input {input_len}",
     )
     ax.set_ylim(bottom=0)
-    ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9)
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        frameon=False,
+        labelcolor=INK_SECONDARY,
+        fontsize=9,
+    )
     written.append(_save(fig, out_dir, f"{prefix}_throughput_vs_batch.png"))
 
-    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    fig, ax = plt.subplots(figsize=(9.5, 4.5))
     styles = {1: "-", 8: "--"}
     for label, bs in [(label, bs) for label in points for bs in styles]:
         rows = sorted(
@@ -316,6 +322,12 @@ def plot_modes(
         ax.set_xticks(xs, [str(x) for x in xs])
     _style(ax, "Inter-token latency by decode mode", "Input length (tokens)", "ITL P50 (ms)", sub)
     ax.set_ylim(bottom=0)
-    ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9)
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        frameon=False,
+        labelcolor=INK_SECONDARY,
+        fontsize=9,
+    )
     written.append(_save(fig, out_dir, f"{prefix}_itl_vs_input.png"))
     return written
