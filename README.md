@@ -140,6 +140,45 @@ traces for batch 4 in [`results-published/traces/`](results-published/traces/)).
   driver API (`cuLaunchKernel`), which the counter then ignored. Per-step
   kernel counts come from GPU-side events and are unaffected.
 
+## Reference point: vLLM on the same work
+
+To see how far the hand-written loop is from a production engine, `mib vllm`
+runs the same grid on vLLM 0.32.0 (separate venv, torch 2.13 + CUDA 13.0):
+same checkpoint, same prompt token ids (identical `input_fingerprint`),
+greedy, EOS ignored, one static batch, and the same token-level check
+against `generate()` before timing (all 24 points exact or near tie).
+Output 128 ([`results-published/vllm.jsonl`](results-published/vllm.jsonl);
+HF columns from [`5070-360m-modes.jsonl`](results-published/5070-360m-modes.jsonl)).
+
+| Batch | Input | E2E HF `cuda_graph` | E2E vLLM graph | ITL P50 HF `cuda_graph` | ITL P50 vLLM graph |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 128 | 418.6 ms | 336.9 ms | 2.92 ms | 2.38 ms |
+| 1 | 1024 | 590.7 ms | 342.2 ms | 4.37 ms | 2.41 ms |
+| 4 | 512 | 632.1 ms | 374.1 ms | 4.66 ms | 2.65 ms |
+| 8 | 128 | 545.9 ms | 344.1 ms | 3.92 ms | 2.47 ms |
+| 8 | 1024 | 1299.7 ms | 508.6 ms | 9.11 ms | 3.14 ms |
+
+![ITL by backend and mode](docs/figures/backends_itl_vs_input.png)
+
+- **At batch 1, input 128 the two graph paths are close** (2.38 vs 2.92 ms
+  ITL): with launches gone, little is left to win on a short context.
+- **The gap grows with context length.** vLLM's ITL barely moves from input
+  128 to 1024 (batch 8: 2.47 to 3.14 ms) while ours triples (3.92 to 9.11 ms).
+  This fits the earlier finding that our static-cache attention is the next
+  cost, but vLLM was not profiled, so its kernels are not compared here.
+- **vLLM eager is faster at the median, worse in the tail.** ITL P50 is
+  9.7-10.9 ms (ours: 14.3-14.7 ms) but P99 is 25-37 ms, and 9 of 12 points
+  are `unstable`. The cause of those stalls was not investigated.
+- **Not the same clock.** HF ITL comes from CUDA events; vLLM ITL from host
+  timestamps of `LLMEngine.step()`, which include its scheduler and output
+  processing. E2E is a synchronized wall clock on both sides, so it is the
+  fairest column. HF records are from an earlier day and torch 2.11; vLLM
+  peak memory is not recorded because vLLM preallocates its KV cache.
+  Full list of differences: [docs/VLLM.md](docs/VLLM.md).
+- **The correctness check caught a vLLM configuration bug.** With
+  `min_tokens` set, vLLM masked EOS and picked a token ~7 logits below the
+  best at every input-1024 point, the same trap as `min_new_tokens` in HF.
+
 ## Case study: can the harness catch a regression?
 
 Two slowdowns are built in behind a config flag; both keep the output
@@ -232,6 +271,7 @@ mib compare <baseline_run_id> <candidate_run_id>      # changes vs noise band
 mib sweep --config configs/smollm2_360m_sweep.json --tag my-sweep
 mib table --tag my-sweep && mib plot --tag my-sweep
 mib trace --config configs/regression_baseline.json --out traces/baseline
+.venv-vllm/bin/mib vllm --config configs/vllm_360m_sweep.json --tag my-vllm   # docs/VLLM.md
 ```
 
 Development checks (CI runs the same on CPU, with a tiny random Llama; GPU-only
@@ -254,9 +294,10 @@ ruff check . && ruff format --check . && mypy && pytest -q
   bound by CPU-side kernel launches, absolute ITL on native Linux may well be
   lower; the shape of the results (flat ITL across batch sizes) is expected to
   hold but has not been checked on native Linux.
-- **One model, one GPU, one framework.** Results describe HF Transformers eager
-  mode on a small model. They say nothing about vLLM, larger models, or other
-  GPUs.
+- **One model, one GPU.** Results describe a small model on one GPU. The vLLM
+  numbers are an offline static batch, not vLLM as a server under load
+  (no continuous batching or request arrivals), and say nothing about larger
+  models or other GPUs.
 - **A minimal loop, not `generate()`.** The timed loop has no logits
   processors, stopping criteria or per-step stop check. HF `generate()`
   (transformers 5.22.1) reads its stop flag on the host every step, which is

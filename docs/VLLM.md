@@ -107,3 +107,23 @@ which is the same trap the HF reference fell into with
 `max_tokens` already gives exactly `output_len` tokens (the backend checks
 the count on every run), so `min_tokens` was removed and a regression test
 pins that. Those records were discarded, not published.
+
+## Published run
+
+`results-published/vllm.jsonl`: tags `5070-360m-vllm-graph` and
+`5070-360m-vllm-eager`, batch {1,2,4,8} x input {128,512,1024}, output 128,
+6 warmup + 5 measured runs, commit `6437ab9`, clean tree. Run on an idle
+machine (1-minute load average at run start 0.35-2.0, recorded per record in
+`manifest.host`; the higher values are the previous point's own load). An
+earlier attempt overlapped with an unrelated CPU-heavy job on the same machine
+and was discarded.
+
+Table and figures:
+
+```bash
+mib table --tag 5070-360m-vllm-graph --results results-published/vllm.jsonl
+mib plot-modes --prefix backends \
+    --results results-published/5070-360m-modes.jsonl results-published/vllm.jsonl \
+    --tag "HF eager=5070-360m-eager-v6" --tag "HF cuda_graph=5070-360m-cudagraph-v3" \
+    --tag "vLLM eager=5070-360m-vllm-eager" --tag "vLLM graph=5070-360m-vllm-graph"
+```
