@@ -175,6 +175,10 @@ HF columns from [`5070-360m-modes.jsonl`](results-published/5070-360m-modes.json
   fairest column. HF records are from an earlier day and torch 2.11; vLLM
   peak memory is not recorded because vLLM preallocates its KV cache.
   Full list of differences: [docs/VLLM.md](docs/VLLM.md).
+- **E2E agrees with vLLM's own benchmark.** `vllm bench latency` at the same
+  points and engine settings is within 4.1% of our E2E at all 12 graph
+  points (within 0.7% at the longest), inside its run-to-run noise
+  ([cross-check](docs/VLLM.md#cross-check-against-vllm-bench-latency)).
 - **The correctness check caught a vLLM configuration bug.** With
   `min_tokens` set, vLLM masked EOS and picked a token ~7 logits below the
   best at every input-1024 point, the same trap as `min_new_tokens` in HF.
