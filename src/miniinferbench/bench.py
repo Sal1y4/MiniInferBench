@@ -106,10 +106,19 @@ def run_benchmark(
     )
     if not result.correctness.matches:
         return result  # timing an incorrect implementation proves nothing
-    for _ in range(config.warmup_runs):
-        measure_run(model, input_ids, config.output_len, config.regression, config.decode_mode)
-    for _ in range(config.measure_runs):
-        result.runs.append(
-            measure_run(model, input_ids, config.output_len, config.regression, config.decode_mode)
+
+    def one_run() -> RunSamples:
+        return measure_run(
+            model,
+            input_ids,
+            config.output_len,
+            config.regression,
+            config.decode_mode,
+            config.step_delay_us,
         )
+
+    for _ in range(config.warmup_runs):
+        one_run()
+    for _ in range(config.measure_runs):
+        result.runs.append(one_run())
     return result

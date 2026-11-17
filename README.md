@@ -232,6 +232,11 @@ mib compare <baseline_run_id> <candidate_run_id>      # changes vs noise band
 mib sweep --config configs/smollm2_360m_sweep.json --tag my-sweep
 mib table --tag my-sweep && mib plot --tag my-sweep
 mib trace --config configs/regression_baseline.json --out traces/baseline
+
+# How far can `mib compare` be trusted on this machine?
+mib repeat --config configs/regression_baseline.json --tag noise --repeats 20 \
+    --delay-us 0 150 300 750                          # 0 = unchanged baseline
+mib noise --tag noise --figures docs/figures          # false alarms, detection rates
 ```
 
 Development checks (CI runs the same on CPU, with a tiny random Llama; GPU-only
@@ -293,6 +298,27 @@ combination aimed at studying one implementation:
 
 It is a harness for studying and catching changes in one implementation, not
 a replacement for engine-level benchmarks.
+
+Closest prior work on the findings themselves:
+
+- **Launch-bound inference.** [SKIP](https://arxiv.org/abs/2504.11750)
+  (Vellaisamy et al., 2025) profiles kernel launch and queuing time (TKLQT) to
+  separate CPU-bound from GPU-bound inference, and estimates what kernel fusion
+  could save from launch counts. It studies prefill on server GPUs and does not
+  implement the fusion. The ablation here measures decode, with fusion and CUDA
+  graphs actually applied and each step backed by a trace.
+- **Trace analysis.** Meta's
+  [Holistic Trace Analysis](https://hta.readthedocs.io/) already splits GPU
+  idle time into waiting-for-host and waiting-for-kernel, and AMD's
+  [TraceLens](https://rocm.blogs.amd.com/software-tools-optimization/tracelens/README.html)
+  summarizes and diffs traces. `mib trace` computes a small subset of that
+  (busy fraction, kernels and launches per decode step) so the numbers sit next
+  to the timing records they explain.
+- **Trace-based benchmarks.** [CCL-Bench](https://arxiv.org/abs/2605.06544)
+  (Ding et al., 2026) asks every result to ship with its trace, a workload
+  card and launch scripts, at multi-GPU scale. This project is the single-GPU
+  complement: it checks that the measured program is correct before timing it
+  and that a reported difference is larger than the noise.
 
 ## Methodology reference
 

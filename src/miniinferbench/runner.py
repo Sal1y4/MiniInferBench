@@ -15,6 +15,7 @@ Measurement boundaries for one run (all inputs are already on the device):
 
 from __future__ import annotations
 
+import time
 import weakref
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
@@ -52,6 +53,14 @@ class RunSamples:
     @property
     def e2e_event_ms(self) -> float:
         return self.ttft_ms + sum(self.itl_ms)
+
+
+def _spin(microseconds: int) -> None:
+    """Busy-wait on the CPU. Sleeping would hand the core back to the OS and
+    make the delay depend on the scheduler; spinning costs what it says."""
+    end = time.perf_counter_ns() + microseconds * 1000
+    while time.perf_counter_ns() < end:
+        pass
 
 
 def _next_token(logits: torch.Tensor) -> torch.Tensor:
@@ -132,6 +141,7 @@ def greedy_decode(
     regression: Regression = "none",
     decode_mode: DecodeMode = "eager",
     phase: PhaseScope = _no_scope,
+    step_delay_us: int = 0,
 ) -> torch.Tensor:
     """Generate exactly `output_len` tokens per sequence; returns `[batch, output_len]`.
 
@@ -140,7 +150,8 @@ def greedy_decode(
     `regression` injects a known slowdown (see `Regression`); "none" in normal use.
     `decode_mode` other than "eager" uses a static KV cache; "compiled" and
     "cuda_graph" also compile the decode step (see `_COMPILE_MODES`). Prefill
-    is eager in every mode.
+    is eager in every mode. `step_delay_us` busy-waits that long in every
+    decode step: a slowdown of known size that leaves the output unchanged.
     """
     if output_len < 1:
         raise ValueError(f"output_len must be >= 1, got {output_len}")
@@ -203,6 +214,8 @@ def greedy_decode(
                 # A common real bug: copying each token to the host (e.g. to check
                 # for EOS) forces the CPU to wait for the GPU every step.
                 token.cpu()
+            if step_delay_us:
+                _spin(step_delay_us)
         tokens.append(token)
         if timeline is not None:
             timeline.mark()
@@ -215,6 +228,7 @@ def measure_run(
     output_len: int,
     regression: Regression = "none",
     decode_mode: DecodeMode = "eager",
+    step_delay_us: int = 0,
 ) -> RunSamples:
     """Run one timed generation and return its raw samples."""
     device = input_ids.device
@@ -223,7 +237,9 @@ def measure_run(
     timeline = EventTimeline(device)
     wall = WallClock(device)
     wall.start()
-    greedy_decode(model, input_ids, output_len, timeline, regression, decode_mode)
+    greedy_decode(
+        model, input_ids, output_len, timeline, regression, decode_mode, step_delay_us=step_delay_us
+    )
     e2e_wall_ms = wall.stop()
     gaps = timeline.finish()
     peak = torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None

@@ -60,6 +60,30 @@ def build_parser() -> argparse.ArgumentParser:
     modes.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
     modes.add_argument("--out", type=Path, default=Path("docs/figures"))
 
+    repeat = sub.add_parser(
+        "repeat", help="run one config many times, optionally with known slowdowns"
+    )
+    repeat.add_argument("--config", type=Path, help="JSON config file (defaults if omitted)")
+    repeat.add_argument("--tag", required=True, help="names the experiment; reuse it to resume")
+    repeat.add_argument("--repeats", type=int, default=20, help="records per delay")
+    repeat.add_argument(
+        "--delay-us",
+        type=int,
+        nargs="+",
+        default=[0],
+        help="busy-wait per decode step; 0 is the unchanged baseline",
+    )
+    repeat.add_argument("--results", type=Path, default=Path("results/repeat.jsonl"))
+    repeat.add_argument("--allow-cpu", action="store_true")
+
+    noise = sub.add_parser(
+        "noise", help="false-positive and detection rates of the comparison rules"
+    )
+    noise.add_argument("--tag", required=True)
+    noise.add_argument("--results", type=Path, default=Path("results/repeat.jsonl"))
+    noise.add_argument("--json", type=Path, help="also write the full report as JSON")
+    noise.add_argument("--figures", type=Path, help="also write detection figures here")
+
     table = sub.add_parser("table", help="print one sweep tag as a Markdown table")
     table.add_argument("--tag", required=True)
     table.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
@@ -156,6 +180,30 @@ def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
     return 0
 
 
+def cmd_noise(results: Path, tag: str, json_path: Path | None, figures: Path | None) -> int:
+    from miniinferbench.noise import build_report, format_report, load_groups
+
+    groups = load_groups(results, tag)
+    report = build_report(groups)
+    print(format_report(report))
+    if json_path:
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if figures:
+        from miniinferbench.plots import plot_detection
+
+        head = groups[0][0]
+        config = head["config"]
+        subtitle = (
+            f"{config['model_name'].split('/')[-1]}, batch {config['batch_size']}, "
+            f"input {config['input_len']}, output {config['output_len']}, "
+            f"{report['baseline_records']} records x {report['runs_per_record']} runs"
+        )
+        for metric in report["metrics"]:
+            print(plot_detection(report, metric, figures, subtitle))
+    return 0
+
+
 def _execute(config: BenchmarkConfig, results: Path, allow_cpu: bool) -> dict[str, Any]:
     from miniinferbench.harness import HarnessOptions, run_task
     from miniinferbench.results import append_record
@@ -206,6 +254,18 @@ def main(argv: list[str] | None = None) -> int:
         statuses = [r["status"] for r in records]
         print({s: statuses.count(s) for s in sorted(set(statuses))})
         return 0
+    if args.command == "repeat":
+        from miniinferbench.noise import run_repeats
+
+        base = BenchmarkConfig.load(args.config) if args.config else BenchmarkConfig()
+        records = run_repeats(
+            base, args.delay_us, args.repeats, args.results, args.tag, not args.allow_cpu
+        )
+        statuses = [r["status"] for r in records]
+        print({s: statuses.count(s) for s in sorted(set(statuses))})
+        return 0
+    if args.command == "noise":
+        return cmd_noise(args.results, args.tag, args.json, args.figures)
     if args.command == "trace":
         return cmd_trace(args.config, args.out)
     if args.command == "plot":

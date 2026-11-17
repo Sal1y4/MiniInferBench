@@ -40,6 +40,9 @@ class BenchmarkConfig:
             "static" (static KV cache, still eager); "compiled" (static cache,
             torch.compile fuses ops, kernels still launched one by one);
             "cuda_graph" (compiled and each decode step replayed as a CUDA graph).
+        step_delay_us: CPU busy-wait added to every decode step, in microseconds.
+            A slowdown of known size, used to measure how small a regression
+            the comparison rules can detect; 0 normally.
     """
 
     model_name: str = "HuggingFaceTB/SmolLM2-360M-Instruct"
@@ -52,6 +55,7 @@ class BenchmarkConfig:
     measure_runs: int = 5
     regression: Regression = "none"
     decode_mode: DecodeMode = "eager"
+    step_delay_us: int = 0
 
     def __post_init__(self) -> None:
         positive = ("batch_size", "input_len", "output_len", "measure_runs")
@@ -59,8 +63,10 @@ class BenchmarkConfig:
             value = getattr(self, name)
             if not isinstance(value, int) or isinstance(value, bool) or value < 1:
                 raise ConfigError(f"{name} must be a positive integer, got {value!r}")
-        if not isinstance(self.warmup_runs, int) or self.warmup_runs < 0:
-            raise ConfigError(f"warmup_runs must be >= 0, got {self.warmup_runs!r}")
+        for name in ("warmup_runs", "step_delay_us"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ConfigError(f"{name} must be an integer >= 0, got {value!r}")
         if self.dtype not in ("bfloat16", "float16", "float32"):
             raise ConfigError(f"unsupported dtype {self.dtype!r}")
         if self.regression not in ("none", "host_sync_each_step", "no_kv_cache"):
