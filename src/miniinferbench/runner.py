@@ -175,6 +175,7 @@ def greedy_decode(
     phase: PhaseScope = _no_scope,
     step_delay_us: int = 0,
     regression_level: int = 1,
+    step_delay_sync: bool = False,
 ) -> torch.Tensor:
     """Generate exactly `output_len` tokens per sequence; returns `[batch, output_len]`.
 
@@ -185,7 +186,8 @@ def greedy_decode(
     `decode_mode` other than "eager" uses a static KV cache; "compiled" and
     "cuda_graph" also compile the decode step (see `_COMPILE_MODES`). Prefill
     is eager in every mode. `step_delay_us` busy-waits that long in every
-    decode step: a slowdown of known size that leaves the output unchanged.
+    decode step and leaves the output unchanged; with `step_delay_sync` the
+    GPU is drained first, so the wait is not hidden behind queued GPU work.
     """
     if output_len < 1:
         raise ValueError(f"output_len must be >= 1, got {output_len}")
@@ -248,6 +250,8 @@ def greedy_decode(
             if regression not in ("none", "no_kv_cache"):
                 _inject(regression, regression_level, out.logits, token, done)
             if step_delay_us:
+                if step_delay_sync and device.type == "cuda":
+                    torch.cuda.synchronize(device)
                 _spin(step_delay_us)
         tokens.append(token)
         if timeline is not None:
@@ -263,6 +267,7 @@ def measure_run(
     decode_mode: DecodeMode = "eager",
     step_delay_us: int = 0,
     regression_level: int = 1,
+    step_delay_sync: bool = False,
 ) -> RunSamples:
     """Run one timed generation and return its raw samples."""
     device = input_ids.device
@@ -280,6 +285,7 @@ def measure_run(
         decode_mode,
         step_delay_us=step_delay_us,
         regression_level=regression_level,
+        step_delay_sync=step_delay_sync,
     )
     e2e_wall_ms = wall.stop()
     gaps = timeline.finish()

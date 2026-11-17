@@ -283,7 +283,7 @@ mib table --tag my-sweep && mib plot --tag my-sweep
 mib trace --config configs/regression_baseline.json --out traces/baseline
 
 # How far can `mib compare` be trusted on this machine?
-mib repeat --config configs/regression_baseline.json --tag noise --repeats 20 \
+mib repeat --config configs/noise_baseline.json --tag noise --repeats 20 \
     --delay-us 0 150 300 750                          # 0 = unchanged baseline
 mib noise --tag noise --figures docs/figures          # false alarms, detection rates
 

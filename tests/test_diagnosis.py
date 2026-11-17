@@ -132,7 +132,8 @@ def test_score_counts_detection_cause_and_false_alarms() -> None:
         case_record("dev", "aa", "none", evidence(10.02)),
         case_record("dev", "false_alarm", "none", evidence(12.0, span=12000.0)),
         case_record("dev", "sync", "host_sync", evidence(12.0, span=12000.0, host_waits=STEPS)),
-        case_record("dev", "missed", "cpu_stall", evidence(10.1)),
+        case_record("dev", "missed", "cpu_stall", evidence(10.2)),
+        case_record("dev", "absorbed", "cpu_stall", evidence(10.01)),
         case_record("heldout", "wrong_cause", "host_sync", evidence(12.0, span=12000.0)),
         case_record("heldout", "broken", "host_sync", BASE) | {"usable": False},
     ]
@@ -144,8 +145,10 @@ def test_score_counts_detection_cause_and_false_alarms() -> None:
     assert (heldout["faults"], heldout["detected"], heldout["cause_correct"]) == (1, 1, 0)
     assert heldout["false_alarm_rate"] is None
     assert result["excluded"] == 1
+    assert dev["absorbed"] == 1
     text = format_scores({"rules_on_trace": result})
-    assert "| `rules_on_trace` | dev | 1/2 (50%) | 1/2 (50%) | 1/2 (50%) |" in text
+    assert "| `rules_on_trace` | dev | 1/2 (50%) | 1/2 (50%) | 1/2 (50%) | 1 |" in text
+    assert "Absorbed (no measurable slowdown, not scored): absorbed (dev 0)" in text
     assert "wrong_cause" in text and "| dev | 0 | sync |" not in text
 
 

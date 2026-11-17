@@ -177,6 +177,7 @@ def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
         config.decode_mode,
         config.step_delay_us,
         config.regression_level,
+        config.step_delay_sync,
     )
     report = analyze(trace_path)
     untraced_us = metrics.percentile(baseline.itl_ms, 50) * 1000

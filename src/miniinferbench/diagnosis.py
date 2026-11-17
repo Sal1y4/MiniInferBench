@@ -14,6 +14,11 @@ the candidate regress, and what is the root cause. `score` then reports
 - false alarms: share of controls flagged as regressions,
 - root cause: share of faults flagged *and* given the right cause.
 
+A fault only counts if it actually slowed the run down. Some do not on some
+workloads (a CPU stall is free while the GPU is the bottleneck), so a fault
+case whose measured per-token time moved by less than `ABSORBED_BELOW` is
+reported as absorbed and left out of the rates.
+
 Cases are built from a suite file: every case is applied to every base
 config. Bases are split into "dev" (rules may be tuned on these) and
 "heldout" (a different model or shape, looked at only for the final score).
@@ -49,6 +54,7 @@ CAUSES = (
     "cpu_stall",  # the CPU is busy elsewhere while the GPU waits
 )
 UNKNOWN = "unknown"
+ABSORBED_BELOW = 0.01
 SPLITS = ("dev", "heldout")
 USABLE = ("ok", "unstable")
 
@@ -171,6 +177,7 @@ def collect(
             config.decode_mode,
             config.step_delay_us,
             config.regression_level,
+            config.step_delay_sync,
         )
         out["evidence"] = make_evidence(record, analyze(path))
         if not keep_traces:
@@ -254,6 +261,16 @@ def is_slower(a: Sequence[float], b: Sequence[float], min_effect: float, alpha: 
         return False
     p, u = mann_whitney_p(a, b)
     return p < alpha and u > len(a) * len(b) / 2
+
+
+def measured_slowdown(baseline: Evidence, candidate: Evidence) -> float:
+    """Relative change of the median time per token, the larger of the GPU
+    timeline's and the end-to-end wall clock's."""
+    a, b = baseline["timing"], candidate["timing"]
+    return max(
+        statistics.median(f(b)) / statistics.median(f(a)) - 1.0
+        for f in (_mean_itl_ms, _per_token_ms)
+    )
 
 
 def detect(baseline: Evidence, candidate: Evidence, min_effect: float, alpha: float) -> bool:
@@ -356,6 +373,7 @@ class Score:
     faults: int = 0
     detected: int = 0
     cause_correct: int = 0
+    absorbed: int = 0
     controls: int = 0
     false_alarms: int = 0
     confusion: dict[str, dict[str, int]] = field(default_factory=dict)
@@ -370,8 +388,9 @@ class Score:
 
 def score(cases: Sequence[dict[str, Any]], diagnoser: Diagnoser) -> dict[str, Any]:
     """Score one diagnoser per split. Cases whose runs failed are counted as
-    `excluded`, not scored. A fault that is not flagged counts against both
-    detection and root cause."""
+    `excluded` and faults without a measurable slowdown as `absorbed`; neither
+    is scored. A fault that is not flagged counts against both detection and
+    root cause."""
     scores = {split: Score() for split in SPLITS}
     rows = []
     excluded = 0
@@ -379,10 +398,26 @@ def score(cases: Sequence[dict[str, Any]], diagnoser: Diagnoser) -> dict[str, An
         if not case["usable"]:
             excluded += 1
             continue
-        verdict = diagnoser(case["baseline"]["evidence"], case["candidate"]["evidence"])
+        before, after = case["baseline"]["evidence"], case["candidate"]["evidence"]
+        verdict = diagnoser(before, after)
         answer = verdict.cause if verdict.regressed else "none"
         s = scores[case["split"]]
         truth = case["cause"]
+        slowdown = measured_slowdown(before, after)
+        row = {
+            "split": case["split"],
+            "base_index": case["base_index"],
+            "case": case["case"],
+            "truth": truth,
+            "answer": answer,
+            "measured_slowdown": slowdown,
+            "absorbed": truth != "none" and slowdown < ABSORBED_BELOW,
+            "notes": list(verdict.notes),
+        }
+        rows.append(row)
+        if row["absorbed"]:
+            s.absorbed += 1
+            continue
         s.confusion.setdefault(truth, {}).setdefault(answer, 0)
         s.confusion[truth][answer] += 1
         if truth == "none":
@@ -392,16 +427,6 @@ def score(cases: Sequence[dict[str, Any]], diagnoser: Diagnoser) -> dict[str, An
             s.faults += 1
             s.detected += verdict.regressed
             s.cause_correct += answer == truth
-        rows.append(
-            {
-                "split": case["split"],
-                "base_index": case["base_index"],
-                "case": case["case"],
-                "truth": truth,
-                "answer": answer,
-                "notes": list(verdict.notes),
-            }
-        )
     return {
         "excluded": excluded,
         "splits": {split: s.as_dict() for split, s in scores.items()},
@@ -416,23 +441,33 @@ def _ratio(hit: int, total: int) -> str:
 def format_scores(report: dict[str, dict[str, Any]]) -> str:
     """Markdown: one summary table, then per diagnoser the cases it got wrong."""
     lines = [
-        "| Diagnoser | Split | Detected | Root cause right | False alarms on controls |",
-        "| --- | --- | --- | --- | --- |",
+        "| Diagnoser | Split | Detected | Root cause right | False alarms on controls "
+        "| Faults absorbed |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for name, result in report.items():
         for split, s in result["splits"].items():
             lines.append(
                 f"| `{name}` | {split} | {_ratio(s['detected'], s['faults'])} | "
                 f"{_ratio(s['cause_correct'], s['faults'])} | "
-                f"{_ratio(s['false_alarms'], s['controls'])} |"
+                f"{_ratio(s['false_alarms'], s['controls'])} | {s['absorbed']} |"
             )
     for name, result in report.items():
-        wrong = [r for r in result["cases"] if r["answer"] != r["truth"]]
+        scored = [r for r in result["cases"] if not r["absorbed"]]
+        wrong = [r for r in scored if r["answer"] != r["truth"]]
         lines += ["", f"### `{name}`: {len(wrong)} wrong, {result['excluded']} excluded", ""]
         if wrong:
-            lines += ["| Split | Base | Case | Truth | Answer |", "| --- | --- | --- | --- | --- |"]
             lines += [
-                f"| {r['split']} | {r['base_index']} | {r['case']} | {r['truth']} | {r['answer']} |"
+                "| Split | Base | Case | Measured slowdown | Truth | Answer |",
+                "| --- | --- | --- | --- | --- | --- |",
+            ]
+            lines += [
+                f"| {r['split']} | {r['base_index']} | {r['case']} | "
+                f"{r['measured_slowdown']:+.1%} | {r['truth']} | {r['answer']} |"
                 for r in wrong
             ]
+        absorbed = [r for r in result["cases"] if r["absorbed"]]
+        if absorbed:
+            names = ", ".join(f"{r['case']} ({r['split']} {r['base_index']})" for r in absorbed)
+            lines += ["", f"Absorbed (no measurable slowdown, not scored): {names}"]
     return "\n".join(lines)

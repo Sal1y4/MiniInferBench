@@ -84,6 +84,10 @@ class BenchmarkConfig(JsonConfig):
         step_delay_us: CPU busy-wait added to every decode step, in microseconds.
             A slowdown of known size, used to measure how small a regression
             the comparison rules can detect; 0 normally.
+        step_delay_sync: Wait for the GPU before the busy-wait. Without it the
+            GPU keeps working through its queue during the wait, so on a
+            GPU-bound workload the delay is absorbed and nothing gets slower.
+            With it the delay adds to every step whatever the bottleneck is.
     """
 
     model_name: str = "HuggingFaceTB/SmolLM2-360M-Instruct"
@@ -98,6 +102,7 @@ class BenchmarkConfig(JsonConfig):
     regression_level: int = 1
     decode_mode: DecodeMode = "eager"
     step_delay_us: int = 0
+    step_delay_sync: bool = False
 
     def __post_init__(self) -> None:
         positive = ("batch_size", "input_len", "output_len", "measure_runs", "regression_level")

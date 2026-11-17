@@ -46,6 +46,7 @@ def capture_trace(
     decode_mode: DecodeMode = "eager",
     step_delay_us: int = 0,
     regression_level: int = 1,
+    step_delay_sync: bool = False,
 ) -> None:
     """Run one traced generation with each phase wrapped in record_function.
 
@@ -65,6 +66,7 @@ def capture_trace(
             phase=record_function,
             step_delay_us=step_delay_us,
             regression_level=regression_level,
+            step_delay_sync=step_delay_sync,
         )
         if input_ids.device.type == "cuda":
             torch.cuda.synchronize()

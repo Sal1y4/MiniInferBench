@@ -117,6 +117,7 @@ def run_benchmark(
             config.decode_mode,
             config.step_delay_us,
             config.regression_level,
+            config.step_delay_sync,
         )
 
     for _ in range(config.warmup_runs):

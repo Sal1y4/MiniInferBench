@@ -9,7 +9,11 @@ Two questions, answered from repeated runs of one configuration:
   flagged as slower is the detection rate. The slowdown comes from two
   sources, reported separately:
     * injected: real runs with `step_delay_us` (a CPU busy-wait per decode
-      step). The realized slowdown is measured, not assumed.
+      step). The realized slowdown is measured, not assumed, and that
+      matters: on a GPU-bound workload a plain busy-wait is absorbed while
+      the GPU works through its queue (the first run on the RTX 5070 showed
+      +0.0% at 750 us per step). Set `step_delay_sync` in the base config so
+      the delay lands on every step.
     * simulated: A/A records with every timing multiplied by (1 + s). This
       gives a full curve for free but assumes a slowdown only shifts the
       timings and leaves their spread unchanged.
