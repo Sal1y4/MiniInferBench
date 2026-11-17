@@ -7,6 +7,7 @@ import torch
 from transformers import PreTrainedModel
 
 import miniinferbench.bench as bench
+import miniinferbench.harness as harness
 import miniinferbench.trace as trace
 from miniinferbench.cli import main
 from miniinferbench.config import BenchmarkConfig, ConfigError
@@ -40,6 +41,7 @@ def evidence(
     host_waits: int = 0,
     busy_growth: float = 1.0,
     runtime_calls: dict[str, int] | None = None,
+    cpu: float = 9000.0,
     runs: int = 5,
 ) -> dict[str, Any]:
     """Synthetic evidence for one run: `runs` measured runs of STEPS gaps of
@@ -59,6 +61,7 @@ def evidence(
             "host_wait_calls_total": host_waits,
             "step_busy_growth": busy_growth,
             "runtime_calls": runtime_calls or {},
+            "step_cpu_us_median": cpu,
         },
     }
 
@@ -83,15 +86,16 @@ def test_unchanged_run_is_not_flagged() -> None:
     ("candidate", "cause"),
     [
         (evidence(12.0, grow=2.0, busy_growth=3.0), "growing_work"),
+        (evidence(12.0, busy=8000.0, host_waits=2 * STEPS), "growing_work"),
         (evidence(12.0, span=12000.0, host_waits=STEPS), "host_sync"),
         (
             evidence(12.0, span=12000.0, runtime_calls={"cudaMalloc": STEPS, "cudaFree": STEPS}),
             "allocator_churn",
         ),
-        (evidence(12.0, span=12000.0, busy=5800.0, kernels=110.0), "wasted_gpu_work"),
-        (evidence(12.0, span=12000.0, busy=4100.0, kernels=160.0), "launch_overhead"),
-        (evidence(12.0, span=12000.0), "cpu_stall"),
-        (evidence(12.0, span=12000.0, busy=6000.0), UNKNOWN),
+        (evidence(12.0, busy=4500.0, kernels=110.0, host_waits=STEPS), "wasted_gpu_work"),
+        (evidence(12.0, busy=4100.0, kernels=160.0), "launch_overhead"),
+        (evidence(12.0, cpu=11000.0), "cpu_stall"),
+        (evidence(12.0), UNKNOWN),
     ],
 )
 def test_rule_diagnoser_names_the_cause(candidate: dict[str, Any], cause: str) -> None:
@@ -130,11 +134,11 @@ def case_record(split: str, name: str, cause: str, candidate: dict[str, Any]) ->
 def test_score_counts_detection_cause_and_false_alarms() -> None:
     cases = [
         case_record("dev", "aa", "none", evidence(10.02)),
-        case_record("dev", "false_alarm", "none", evidence(12.0, span=12000.0)),
+        case_record("dev", "false_alarm", "none", evidence(12.0, cpu=11000.0)),
         case_record("dev", "sync", "host_sync", evidence(12.0, span=12000.0, host_waits=STEPS)),
         case_record("dev", "missed", "cpu_stall", evidence(10.2)),
         case_record("dev", "absorbed", "cpu_stall", evidence(10.01)),
-        case_record("heldout", "wrong_cause", "host_sync", evidence(12.0, span=12000.0)),
+        case_record("heldout", "wrong_cause", "host_sync", evidence(12.0, cpu=11000.0)),
         case_record("heldout", "broken", "host_sync", BASE) | {"usable": False},
     ]
     result = score(cases, rule_diagnoser())
@@ -181,8 +185,7 @@ def test_shipped_suite_loads() -> None:
 
 
 def test_evidence_hides_the_config() -> None:
-    record = {"config": {"regression": "host_sync_each_step"}, "raw": BASE["timing"] | {"x": 1}}
-    out = make_evidence(record, {"decode_steps": 3, "steps": [1, 2, 3]})
+    out = make_evidence(BASE["timing"] | {"x": 1}, {"decode_steps": 3, "steps": [1, 2, 3]})
     assert out == {"timing": BASE["timing"], "trace": {"decode_steps": 3}}
     assert "host_sync" not in json.dumps(out)
 
@@ -198,7 +201,6 @@ def test_collect_and_diagnose_end_to_end(
         return model, set()
 
     monkeypatch.setattr(bench, "load_model", tiny)
-    monkeypatch.setattr(trace, "analyze", lambda path: BASE["trace"] | {"steps": []})
     suite_path = write_suite(
         tmp_path / "suite.json",
         [
@@ -211,8 +213,26 @@ def test_collect_and_diagnose_end_to_end(
         ],
     )
     results, traces = tmp_path / "d.jsonl", tmp_path / "traces"
+    order: list[str] = []
+    real_run_task = harness.run_task
+
+    def spy_run_task(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        order.append("time")
+        record: dict[str, Any] = real_run_task(*args, **kwargs)
+        return record
+
+    def stub_analyze(path: Path) -> dict[str, Any]:
+        order.append("trace")
+        report: dict[str, Any] = BASE["trace"] | {"steps": []}
+        return report
+
+    monkeypatch.setattr(harness, "run_task", spy_run_task)
+    monkeypatch.setattr(trace, "analyze", stub_analyze)
     assert collect(Suite.load(suite_path), results, "t", traces, require_cuda=False) == 2
+    # Every timed run happens before the profiler is used for the first time.
+    assert order == ["time"] * 4 + ["trace"] * 4
     assert collect(Suite.load(suite_path), results, "t", traces, require_cuda=False) == 0  # resumed
+    assert len(order) == 8
     cases = load_cases(results, "t")
     assert [c["case"] for c in cases] == ["aa", "sync"]
     assert all(c["usable"] for c in cases)

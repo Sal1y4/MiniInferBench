@@ -114,14 +114,12 @@ Diagnoser = Callable[[Evidence, Evidence], Diagnosis]
 # --- collecting evidence -----------------------------------------------------
 
 
-def make_evidence(record: dict[str, Any], trace_report: dict[str, Any]) -> Evidence:
+def make_evidence(timing: dict[str, Any], trace_report: dict[str, Any]) -> Evidence:
     """What a diagnoser may see of one run: raw timings and trace features.
     The config (which names the fault) is left out."""
-    raw = record["raw"]
-    trace = {k: v for k, v in trace_report.items() if k != "steps"}
     return {
-        "timing": {k: raw[k] for k in ("ttft_ms", "itl_ms", "e2e_wall_ms")},
-        "trace": trace,
+        "timing": {k: timing[k] for k in ("ttft_ms", "itl_ms", "e2e_wall_ms")},
+        "trace": {k: v for k, v in trace_report.items() if k != "steps"},
     }
 
 
@@ -133,38 +131,58 @@ def collect(
     require_cuda: bool = True,
     keep_traces: bool = False,
 ) -> int:
-    """Run every case on every base and append one record per case.
+    """Run every case on every base; returns the number of completed cases.
 
-    Each case gets its own fresh baseline run right before the candidate, so
-    machine drift over the suite does not leak into the comparison and an
-    unchanged control really is an A/A pair. Resumable by tag. Raw traces are
-    large, so only their analysis is kept unless `keep_traces` is set.
+    Two passes over the suite. The first only times: each case gets its own
+    fresh baseline run right before the candidate, so machine drift does not
+    leak into the comparison and an unchanged control really is an A/A pair.
+    The second only traces. They are kept apart so that no timed run happens
+    in a process that has already used the profiler: the first run of this
+    suite interleaved them, and 109 of its 140 timed runs came out unstable,
+    with A/A pairs differing by up to 20%, while the same config timed without
+    any profiling was stable. `scripts/profiler_aftereffect.py` tests that
+    explanation in isolation.
+
+    Resumable by tag: a rerun in a new process finishes missing timings
+    first, then missing traces. Raw traces are large, so only their analysis
+    is kept unless `keep_traces` is set.
     """
     import torch
 
     from miniinferbench.bench import load_model
-    from miniinferbench.harness import HarnessOptions, ModelLoader, run_task
+    from miniinferbench.harness import HarnessOptions, run_task
     from miniinferbench.trace import analyze, capture_trace
     from miniinferbench.workload import make_prompts
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     options = HarnessOptions(require_cuda=require_cuda)
-    done = set()
+    stored: dict[tuple[str, int, str], dict[str, Any]] = {}
     if results.exists():
-        done = {
-            (r["split"], r["base_index"], r["case"])
-            for r in read_records(results)
-            if r.get("suite_tag") == tag
-        }
+        for row in read_records(results):
+            if row.get("suite_tag") == tag:
+                stored[(row["split"], row["base_index"], row["case"])] = row
     loaded_key: tuple[str, str] | None = None
     loaded: tuple[Any, set[int]] | None = None
 
-    def observe(config: BenchmarkConfig, loader: ModelLoader, name: str) -> dict[str, Any]:
-        record = run_task(config, options, loader)
-        out = {"run_id": record["run_id"], "status": record["status"], "reason": record["reason"]}
-        if record["status"] not in USABLE:
-            return out
-        model, special_ids = loader(config, device)
+    def bases() -> Any:
+        nonlocal loaded, loaded_key
+        for split in SPLITS:
+            for index, base in enumerate(suite.bases[split]):
+                key = (base.model_name, base.dtype)
+                if key != loaded_key or loaded is None:
+                    loaded = None  # one model in memory at a time
+                    loaded, loaded_key = load_model(base, device), key
+                yield split, index, base, loaded
+
+    def timed(config: BenchmarkConfig, pair: tuple[Any, set[int]]) -> dict[str, Any]:
+        record = run_task(config, options, _constant_loader(pair))
+        out = {k: record[k] for k in ("run_id", "status", "reason", "manifest")}
+        if record["status"] in USABLE:
+            out["timing"] = record["raw"]
+        return out
+
+    def traced(config: BenchmarkConfig, pair: tuple[Any, set[int]], name: str) -> dict[str, Any]:
+        model, special_ids = pair
         vocab = model.get_input_embeddings().weight.shape[0]
         prompts = make_prompts(config.batch_size, config.input_len, vocab, config.seed, special_ids)
         path = traces / f"{name}.trace.json"
@@ -179,50 +197,61 @@ def collect(
             config.regression_level,
             config.step_delay_sync,
         )
-        out["evidence"] = make_evidence(record, analyze(path))
+        report = analyze(path)
         if not keep_traces:
             path.unlink()
-        out["manifest"] = record["manifest"]
-        return out
+        return report
 
-    written = 0
-    for split in SPLITS:
-        for index, base in enumerate(suite.bases[split]):
-            key = (base.model_name, base.dtype)
-            if key != loaded_key or loaded is None:
-                loaded = None  # one model in memory at a time
-                loaded, loaded_key = load_model(base, device), key
-            cached = _constant_loader(loaded)
-            for case in suite.cases:
-                if (split, index, case.name) in done:
-                    continue
+    for split, index, base, pair in bases():
+        for case in suite.cases:
+            key = (split, index, case.name)
+            if key in stored:
+                continue
+            baseline = timed(base, pair)
+            candidate = timed(dataclasses.replace(base, **case.overrides), pair)
+            row = {
+                "suite_tag": tag,
+                "stage": "timed",
+                "split": split,
+                "base_index": index,
+                "base": base.to_dict(),
+                "case": case.name,
+                "cause": case.cause,
+                "overrides": case.overrides,
+                "usable": baseline["status"] in USABLE and candidate["status"] in USABLE,
+                "baseline": baseline,
+                "candidate": candidate,
+            }
+            append_record(results, row)
+            stored[key] = row
+            print(
+                f"[timed {split}{index}] {case.name}: "
+                f"baseline {baseline['status']}, candidate {candidate['status']}"
+            )
+
+    completed = 0
+    for split, index, base, pair in bases():
+        for case in suite.cases:
+            row = stored[(split, index, case.name)]
+            if row["stage"] == "complete":
+                continue
+            row = {k: v for k, v in row.items() if k != "schema_version"} | {"stage": "complete"}
+            if row["usable"]:
                 stem = f"{tag}-{split}{index}-{case.name}"
-                baseline = observe(base, cached, f"{stem}-baseline")
-                candidate = observe(
-                    dataclasses.replace(base, **case.overrides), cached, f"{stem}-candidate"
-                )
-                usable = baseline["status"] in USABLE and candidate["status"] in USABLE
-                append_record(
-                    results,
-                    {
-                        "suite_tag": tag,
-                        "split": split,
-                        "base_index": index,
-                        "base": base.to_dict(),
-                        "case": case.name,
-                        "cause": case.cause,
-                        "overrides": case.overrides,
-                        "usable": usable,
-                        "baseline": baseline,
-                        "candidate": candidate,
-                    },
-                )
-                written += 1
-                print(
-                    f"[{split}{index}] {case.name}: "
-                    f"baseline {baseline['status']}, candidate {candidate['status']}"
-                )
-    return written
+                configs = {
+                    "baseline": base,
+                    "candidate": dataclasses.replace(base, **case.overrides),
+                }
+                for side, config in configs.items():
+                    run = dict(row[side])
+                    run["evidence"] = make_evidence(
+                        run.pop("timing"), traced(config, pair, f"{stem}-{side}")
+                    )
+                    row[side] = run
+            append_record(results, row)
+            completed += 1
+            print(f"[traced {split}{index}] {case.name}")
+    return completed
 
 
 def _constant_loader(pair: tuple[Any, set[int]]) -> Any:
@@ -230,7 +259,12 @@ def _constant_loader(pair: tuple[Any, set[int]]) -> Any:
 
 
 def load_cases(results: Path, tag: str) -> list[dict[str, Any]]:
-    return [r for r in read_records(results) if r.get("suite_tag") == tag]
+    """Completed cases of one tag (timed and traced)."""
+    return [
+        r
+        for r in read_records(results)
+        if r.get("suite_tag") == tag and r.get("stage", "complete") == "complete"
+    ]
 
 
 # --- reference diagnosers ----------------------------------------------------
@@ -296,12 +330,19 @@ def rule_diagnoser(min_effect: float = 0.03, alpha: float = 0.05) -> Diagnoser:
     """Detect from timings, then name a cause from what changed in the trace.
 
     The rules are checked in order; the first that fires wins.
-      1. step work grows along the sequence            -> growing_work
-      2. more blocking host calls per step             -> host_sync
-      3. more allocator calls per step                 -> allocator_churn
-      4. more kernels per step, added time GPU-busy    -> wasted_gpu_work
-      5. more kernels per step, added time GPU-idle    -> launch_overhead
-      6. same kernels, longer step, GPU idle meanwhile -> cpu_stall
+      1. the same kernels take longer, or work grows
+         along the sequence                            -> growing_work
+      2. more allocator calls per step                 -> allocator_churn
+      3. more kernels per step, each at least as heavy
+         as the average kernel before                  -> wasted_gpu_work
+      4. more kernels per step, lighter than average   -> launch_overhead
+      5. more blocking host calls per step             -> host_sync
+      6. none of the above, CPU side of the step longer -> cpu_stall
+
+    Kernel-count rules come before the host-call rule because extra GPU work
+    can bring its own blocking calls (a sort does), while a plain host copy
+    adds no kernels. Thresholds were set on the dev split of run
+    5070-diag-v1.
     """
 
     def diagnose(baseline: Evidence, candidate: Evidence) -> Diagnosis:
@@ -310,16 +351,14 @@ def rule_diagnoser(min_effect: float = 0.03, alpha: float = 0.05) -> Diagnoser:
         a, b = baseline["trace"], candidate["trace"]
         notes = []
 
+        kernels_a, kernels_b = a["kernels_per_step_median"], b["kernels_per_step_median"]
+        busy_a, busy_b = a["step_busy_us_median"], b["step_busy_us_median"]
+        per_kernel_a, per_kernel_b = busy_a / kernels_a, busy_b / kernels_b
         grow_a, grow_b = a["step_busy_growth"], b["step_busy_growth"]
+        notes.append(f"busy time per kernel {per_kernel_a:.2f} -> {per_kernel_b:.2f} us")
         notes.append(f"busy time growth along the sequence {grow_a:.2f} -> {grow_b:.2f}")
-        if grow_b > 1.3 and grow_b > 1.2 * grow_a:
+        if per_kernel_b >= 1.3 * per_kernel_a or (grow_b > 1.3 and grow_b > 1.2 * grow_a):
             return Diagnosis(True, "growing_work", tuple(notes))
-
-        waits_a = _per_step(a, a["host_wait_calls_total"])
-        waits_b = _per_step(b, b["host_wait_calls_total"])
-        notes.append(f"blocking host calls per step {waits_a:.2f} -> {waits_b:.2f}")
-        if waits_b - waits_a >= 0.5:
-            return Diagnosis(True, "host_sync", tuple(notes))
 
         alloc_a = _per_step(a, _allocator_calls(a))
         alloc_b = _per_step(b, _allocator_calls(b))
@@ -327,17 +366,25 @@ def rule_diagnoser(min_effect: float = 0.03, alpha: float = 0.05) -> Diagnoser:
         if alloc_b - alloc_a >= 0.5:
             return Diagnosis(True, "allocator_churn", tuple(notes))
 
-        kernels_a, kernels_b = a["kernels_per_step_median"], b["kernels_per_step_median"]
-        added_span = b["step_span_us_median"] - a["step_span_us_median"]
-        added_busy = b["step_busy_us_median"] - a["step_busy_us_median"]
-        busy_share = added_busy / added_span if added_span > 0 else 0.0
+        added_kernels = kernels_b - kernels_a
         notes.append(f"kernels per step {kernels_a:.0f} -> {kernels_b:.0f}")
-        notes.append(f"{busy_share:.0%} of the added step time has a kernel running")
-        if kernels_b - kernels_a >= max(2.0, 0.05 * kernels_a):
-            cause = "wasted_gpu_work" if busy_share >= 0.5 else "launch_overhead"
+        if added_kernels >= 2:
+            per_added = (busy_b - busy_a) / added_kernels
+            notes.append(f"each added kernel is busy {per_added:.2f} us")
+            cause = "wasted_gpu_work" if per_added >= per_kernel_a else "launch_overhead"
             return Diagnosis(True, cause, tuple(notes))
-        if added_span > 0 and busy_share < 0.5:
-            return Diagnosis(True, "cpu_stall", tuple(notes))
+
+        waits_a = _per_step(a, a["host_wait_calls_total"])
+        waits_b = _per_step(b, b["host_wait_calls_total"])
+        notes.append(f"blocking host calls per step {waits_a:.2f} -> {waits_b:.2f}")
+        if waits_b - waits_a >= 0.5:
+            return Diagnosis(True, "host_sync", tuple(notes))
+
+        cpu_a, cpu_b = a.get("step_cpu_us_median"), b.get("step_cpu_us_median")
+        if cpu_a and cpu_b:
+            notes.append(f"CPU side of a step {cpu_a:.0f} -> {cpu_b:.0f} us")
+            if cpu_b > 1.02 * cpu_a:
+                return Diagnosis(True, "cpu_stall", tuple(notes))
         return Diagnosis(True, UNKNOWN, tuple(notes))
 
     return diagnose

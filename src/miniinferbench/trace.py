@@ -13,7 +13,7 @@ The analyzer reads the exported Chrome trace JSON:
 
 For each decode step it reports the span length, the time at least one kernel
 was running (union of kernel intervals), and the kernel count. A low busy
-fraction means the GPU sat idle inside the step, waiting for the CPU.
+fraction means the GPU sat idle inside the step, waiting for the next launch.
 """
 
 from __future__ import annotations
@@ -171,6 +171,18 @@ def growth(values: Sequence[float]) -> float:
     return statistics.median(values[-third:]) / first if first else 1.0
 
 
+def cpu_step_us(events: Sequence[dict[str, Any]], name: str = DECODE_STEP) -> float | None:
+    """Median length of a step on the CPU side: from entering to leaving the
+    `record_function` range. Unlike the GPU-timeline span, this includes time
+    the CPU spends without launching anything."""
+    spans = [
+        e["dur"]
+        for e in sorted(events, key=lambda e: e.get("ts", 0))
+        if e.get("cat") == "user_annotation" and e.get("name") == name and "dur" in e
+    ]
+    return statistics.median(spans[1:] or spans) if spans else None
+
+
 def analyze(trace_path: Path) -> dict[str, Any]:
     data = json.loads(trace_path.read_text(encoding="utf-8"))
     events: list[dict[str, Any]] = data["traceEvents"] if isinstance(data, dict) else data
@@ -189,6 +201,7 @@ def analyze(trace_path: Path) -> dict[str, Any]:
         "graph_launches_total": count_graph_launches(events),
         "host_wait_calls_total": count_host_waits(events),
         "step_busy_growth": growth([s.busy_us for s in steady]),
+        "step_cpu_us_median": cpu_step_us(events),
         "runtime_calls": runtime_calls(events),
         "top_kernels": [
             {"name": n, "total_us": us, "count": c} for n, us, c in top_kernels(events)
