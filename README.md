@@ -208,6 +208,15 @@ record (status, manifest, raw samples, evidence) <── stability check <──
   (traced step span was 1.4–1.8x the untraced ITL), so traces are used for
   proportions and kernel breakdowns, not absolute times.
 
+- **Training steps are verified too.** `mib train` times forward, backward and
+  optimizer separately, but only after a check phase: the loss of the first
+  steps must match a plain reference loop (the model's own loss, default
+  AdamW), every trainable parameter must receive a non-zero gradient and
+  change, and nothing may be frozen. A fast step that does not train is
+  `wrong_result`, not a speedup. `train_fault_*.json` configs inject two such
+  failures (frozen layers, zero learning rate) to show the gate catches them.
+  Numbers from the RTX 5070 are not published yet.
+
 | Status | Meaning |
 | --- | --- |
 | `ok` | Output matches `generate()`, end-to-end CV within threshold (0.05) |
@@ -237,6 +246,10 @@ mib trace --config configs/regression_baseline.json --out traces/baseline
 mib repeat --config configs/regression_baseline.json --tag noise --repeats 20 \
     --delay-us 0 150 300 750                          # 0 = unchanged baseline
 mib noise --tag noise --figures docs/figures          # false alarms, detection rates
+
+# Training step: timed only if the loss matches a reference loop and weights move
+mib train --config configs/train_smollm2_360m.json
+mib train --config configs/train_fault_frozen_layers.json   # -> wrong_result
 ```
 
 Development checks (CI runs the same on CPU, with a tiny random Llama; GPU-only

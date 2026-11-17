@@ -23,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--results", type=Path, default=DEFAULT_RESULTS)
     run.add_argument("--allow-cpu", action="store_true", help="allow a CPU smoke run")
 
+    train = sub.add_parser("train", help="run one training-step config and append a record")
+    train.add_argument("--config", type=Path, help="JSON TrainConfig file (defaults if omitted)")
+    train.add_argument("--results", type=Path, default=Path("results/train.jsonl"))
+    train.add_argument("--allow-cpu", action="store_true", help="allow a CPU smoke run")
+
     rerun = sub.add_parser("rerun", help="repeat a recorded run with its exact config")
     rerun.add_argument("run_id")
     rerun.add_argument("--results", type=Path, default=DEFAULT_RESULTS)
@@ -234,6 +239,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         config = BenchmarkConfig.load(args.config) if args.config else BenchmarkConfig()
         record = _execute(config, args.results, args.allow_cpu)
+        return 0 if record["status"] == "ok" else 1
+    if args.command == "train":
+        from miniinferbench.results import append_record
+        from miniinferbench.training import TrainConfig, TrainOptions, run_train_task
+
+        train_config = TrainConfig.load(args.config) if args.config else TrainConfig()
+        record = run_train_task(train_config, TrainOptions(require_cuda=not args.allow_cpu))
+        append_record(args.results, record)
+        print(f"run {record['run_id']}: {record['status']} {record.get('reason', '')}".rstrip())
+        if "gate" in record:
+            gate = record["gate"]
+            print(f"gate: {gate['kind']}, max relative loss gap {gate['max_relative_gap']:.2e}")
+        if "summary" in record:
+            print(json.dumps(record["summary"], indent=2))
         return 0 if record["status"] == "ok" else 1
     if args.command == "rerun":
         from miniinferbench.results import find_record

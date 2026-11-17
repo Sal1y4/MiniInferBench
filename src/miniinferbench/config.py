@@ -22,8 +22,39 @@ class ConfigError(ValueError):
     """Raised when a configuration is invalid or cannot be loaded."""
 
 
+class JsonConfig:
+    """Save/load behaviour shared by the config dataclasses: plain JSON, with
+    unknown fields rejected instead of silently ignored."""
+
+    __slots__ = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return dataclasses.asdict(self)  # type: ignore[call-overload,no-any-return]
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        known = {field.name for field in dataclasses.fields(cls)}  # type: ignore[arg-type]
+        unknown = sorted(set(data) - known)
+        if unknown:
+            raise ConfigError(f"unknown config fields: {', '.join(unknown)}")
+        return cls(**data)
+
+    def save(self, path: Path) -> None:
+        path.write_text(json.dumps(self.to_dict(), indent=2) + "\n", encoding="utf-8")
+
+    @classmethod
+    def load(cls, path: Path) -> Self:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ConfigError(f"cannot read config {path}: {exc}") from exc
+        if not isinstance(data, dict):
+            raise ConfigError(f"config {path} must contain a JSON object")
+        return cls.from_dict(data)
+
+
 @dataclass(frozen=True, slots=True)
-class BenchmarkConfig:
+class BenchmarkConfig(JsonConfig):
     """Parameters of one benchmark run.
 
     Attributes:
@@ -77,27 +108,3 @@ class BenchmarkConfig:
             raise ConfigError("no_kv_cache needs decode_mode 'eager'")
         if not self.model_name:
             raise ConfigError("model_name must not be empty")
-
-    def to_dict(self) -> dict[str, Any]:
-        return dataclasses.asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Self:
-        known = {field.name for field in dataclasses.fields(cls)}
-        unknown = sorted(set(data) - known)
-        if unknown:
-            raise ConfigError(f"unknown config fields: {', '.join(unknown)}")
-        return cls(**data)
-
-    def save(self, path: Path) -> None:
-        path.write_text(json.dumps(self.to_dict(), indent=2) + "\n", encoding="utf-8")
-
-    @classmethod
-    def load(cls, path: Path) -> Self:
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ConfigError(f"cannot read config {path}: {exc}") from exc
-        if not isinstance(data, dict):
-            raise ConfigError(f"config {path} must contain a JSON object")
-        return cls.from_dict(data)

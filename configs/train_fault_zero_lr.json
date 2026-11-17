@@ -1,0 +1,15 @@
+{
+  "model_name": "HuggingFaceTB/SmolLM2-360M-Instruct",
+  "batch_size": 4,
+  "seq_len": 256,
+  "seed": 0,
+  "precision": "bf16_autocast",
+  "fused_optimizer": true,
+  "compile": false,
+  "learning_rate": 1e-05,
+  "check_steps": 5,
+  "warmup_steps": 5,
+  "measure_runs": 5,
+  "steps_per_run": 20,
+  "fault": "zero_lr"
+}
