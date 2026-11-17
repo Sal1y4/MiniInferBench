@@ -1,0 +1,171 @@
+{
+  "bases": {
+    "dev": [
+      {
+        "model_name": "HuggingFaceTB/SmolLM2-360M-Instruct",
+        "batch_size": 4,
+        "input_len": 512,
+        "output_len": 128,
+        "seed": 0,
+        "dtype": "bfloat16",
+        "warmup_runs": 1,
+        "measure_runs": 5
+      },
+      {
+        "model_name": "HuggingFaceTB/SmolLM2-360M-Instruct",
+        "batch_size": 1,
+        "input_len": 128,
+        "output_len": 128,
+        "seed": 0,
+        "dtype": "bfloat16",
+        "warmup_runs": 1,
+        "measure_runs": 5
+      }
+    ],
+    "heldout": [
+      {
+        "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
+        "batch_size": 4,
+        "input_len": 512,
+        "output_len": 128,
+        "seed": 0,
+        "dtype": "bfloat16",
+        "warmup_runs": 1,
+        "measure_runs": 5
+      },
+      {
+        "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
+        "batch_size": 1,
+        "input_len": 128,
+        "output_len": 128,
+        "seed": 0,
+        "dtype": "bfloat16",
+        "warmup_runs": 1,
+        "measure_runs": 5
+      },
+      {
+        "model_name": "HuggingFaceTB/SmolLM2-360M-Instruct",
+        "batch_size": 8,
+        "input_len": 256,
+        "output_len": 96,
+        "seed": 0,
+        "dtype": "bfloat16",
+        "warmup_runs": 1,
+        "measure_runs": 5
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "unchanged_a",
+      "cause": "none",
+      "overrides": {},
+      "description": "The same config again (A/A)."
+    },
+    {
+      "name": "unchanged_b",
+      "cause": "none",
+      "overrides": {},
+      "description": "The same config again (A/A)."
+    },
+    {
+      "name": "other_prompts",
+      "cause": "none",
+      "overrides": {
+        "seed": 1
+      },
+      "description": "Different prompt tokens of the same shape."
+    },
+    {
+      "name": "longer_output",
+      "cause": "none",
+      "overrides": {
+        "output_len": 192
+      },
+      "description": "More tokens generated: longer end to end, not slower per token."
+    },
+    {
+      "name": "cuda_graph",
+      "cause": "none",
+      "overrides": {
+        "decode_mode": "cuda_graph"
+      },
+      "description": "A legitimate optimization: the trace changes completely, the run is not slower."
+    },
+    {
+      "name": "host_sync",
+      "cause": "host_sync",
+      "overrides": {
+        "regression": "host_sync_each_step"
+      },
+      "description": "Every token is copied to the host, e.g. for an EOS check."
+    },
+    {
+      "name": "no_kv_cache",
+      "cause": "growing_work",
+      "overrides": {
+        "regression": "no_kv_cache"
+      },
+      "description": "The whole sequence is recomputed every step."
+    },
+    {
+      "name": "sorted_probs_x1",
+      "cause": "wasted_gpu_work",
+      "overrides": {
+        "regression": "sorted_probs_each_step"
+      },
+      "description": "Leftover sampling code: softmax and sort over the vocabulary each step."
+    },
+    {
+      "name": "sorted_probs_x4",
+      "cause": "wasted_gpu_work",
+      "overrides": {
+        "regression": "sorted_probs_each_step",
+        "regression_level": 4
+      },
+      "description": "The same, four times per step."
+    },
+    {
+      "name": "row_loop_x2",
+      "cause": "launch_overhead",
+      "overrides": {
+        "regression": "per_row_bookkeeping",
+        "regression_level": 2
+      },
+      "description": "A Python loop over batch rows doing tiny tensor ops, twice per step."
+    },
+    {
+      "name": "row_loop_x8",
+      "cause": "launch_overhead",
+      "overrides": {
+        "regression": "per_row_bookkeeping",
+        "regression_level": 8
+      },
+      "description": "The same, eight times per step."
+    },
+    {
+      "name": "empty_cache",
+      "cause": "allocator_churn",
+      "overrides": {
+        "regression": "empty_cache_each_step"
+      },
+      "description": "torch.cuda.empty_cache() inside the decode loop."
+    },
+    {
+      "name": "cpu_stall_150us",
+      "cause": "cpu_stall",
+      "overrides": {
+        "step_delay_us": 150
+      },
+      "description": "The CPU is busy for 150 us per step while the GPU waits."
+    },
+    {
+      "name": "cpu_stall_1000us",
+      "cause": "cpu_stall",
+      "overrides": {
+        "step_delay_us": 1000
+      },
+      "description": "The same, 1000 us per step."
+    }
+  ]
+}

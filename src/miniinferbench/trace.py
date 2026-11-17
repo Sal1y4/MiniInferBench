@@ -44,14 +44,14 @@ def capture_trace(
     path: Path,
     regression: Regression = "none",
     decode_mode: DecodeMode = "eager",
+    step_delay_us: int = 0,
+    regression_level: int = 1,
 ) -> None:
     """Run one traced generation with each phase wrapped in record_function.
 
     Uses the same loop as the timed runs, so a trace shows exactly what was
-    measured. "no_kv_cache" is not traced (its steps grow with sequence length).
+    measured.
     """
-    if regression == "no_kv_cache":
-        raise ValueError("tracing the no_kv_cache regression is not supported")
     activities = [ProfilerActivity.CPU]
     if input_ids.device.type == "cuda":
         activities.append(ProfilerActivity.CUDA)
@@ -63,6 +63,8 @@ def capture_trace(
             regression=regression,
             decode_mode=decode_mode,
             phase=record_function,
+            step_delay_us=step_delay_us,
+            regression_level=regression_level,
         )
         if input_ids.device.type == "cuda":
             torch.cuda.synchronize()
@@ -150,6 +152,23 @@ def count_host_waits(events: Sequence[dict[str, Any]]) -> int:
     )
 
 
+def runtime_calls(events: Sequence[dict[str, Any]]) -> dict[str, int]:
+    """How often each CUDA runtime/driver API call was made."""
+    counts: dict[str, int] = defaultdict(int)
+    for e in events:
+        if e.get("cat") in ("cuda_runtime", "cuda_driver"):
+            counts[e.get("name", "")] += 1
+    return dict(sorted(counts.items()))
+
+
+def growth(values: Sequence[float]) -> float:
+    """Median of the last third over the median of the first third. About 1
+    for steps that do constant work; above 1 when later steps cost more."""
+    third = max(len(values) // 3, 1)
+    first = statistics.median(values[:third])
+    return statistics.median(values[-third:]) / first if first else 1.0
+
+
 def analyze(trace_path: Path) -> dict[str, Any]:
     data = json.loads(trace_path.read_text(encoding="utf-8"))
     events: list[dict[str, Any]] = data["traceEvents"] if isinstance(data, dict) else data
@@ -167,6 +186,8 @@ def analyze(trace_path: Path) -> dict[str, Any]:
         "kernel_launches_total": count_launches(events),
         "graph_launches_total": count_graph_launches(events),
         "host_wait_calls_total": count_host_waits(events),
+        "step_busy_growth": growth([s.busy_us for s in steady]),
+        "runtime_calls": runtime_calls(events),
         "top_kernels": [
             {"name": n, "total_us": us, "count": c} for n, us, c in top_kernels(events)
         ],

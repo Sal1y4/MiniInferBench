@@ -2,6 +2,7 @@ import pytest
 import torch
 from transformers import LlamaForCausalLM
 
+from miniinferbench.config import REGRESSIONS
 from miniinferbench.runner import check_correctness, greedy_decode, measure_run
 from miniinferbench.workload import make_prompts
 
@@ -136,12 +137,18 @@ def test_rejects_zero_output_len(model: LlamaForCausalLM) -> None:
         greedy_decode(model, make_prompts(1, 4, vocab_size=128, seed=0), output_len=0)
 
 
-@pytest.mark.parametrize("regression", ["host_sync_each_step", "no_kv_cache"])
+@pytest.mark.parametrize("regression", [r for r in REGRESSIONS if r != "none"])
 def test_injected_regressions_keep_output_identical(
     model: LlamaForCausalLM, regression: str
 ) -> None:
     input_ids = make_prompts(2, 10, vocab_size=128, seed=5)
-    report = check_correctness(model, input_ids, output_len=8, regression=regression)  # type: ignore[arg-type]
+    report = check_correctness(
+        model,
+        input_ids,
+        output_len=8,
+        regression=regression,  # type: ignore[arg-type]
+        regression_level=2,
+    )
     assert report.matches
 
 

@@ -183,6 +183,46 @@ does not disable EOS. It falls back to the model's EOS, and `min_new_tokens`
 then masks it, forcing the runner-up token. Fixed with `eos_token_id=[]`, with
 a regression test that fails on the old config.
 
+## Diagnosis task set
+
+Detecting that a run got slower is half the job; the other half is saying why.
+`configs/diagnosis_suite.json` turns that into a task with known answers. A
+case is a baseline run and a candidate run of the same workload that differ by
+one hidden change. The output is identical in every case (the correctness gate
+checks it), so only timings and the profiler trace can tell them apart.
+
+| Hidden change | Right answer | What it models |
+| --- | --- | --- |
+| nothing (twice) | no regression | A/A pair |
+| other prompt tokens, same shape | no regression | harmless input change |
+| longer output | no regression | longer end to end, not slower per token |
+| CUDA-graph decode | no regression | a real optimization; the trace changes completely |
+| token copied to host each step | `host_sync` | an EOS check on the CPU |
+| KV cache off | `growing_work` | recomputing the sequence each step |
+| softmax + sort over the vocabulary (x1, x4) | `wasted_gpu_work` | leftover sampling code |
+| Python loop over batch rows (x2, x8) | `launch_overhead` | many tiny kernels |
+| `empty_cache()` each step | `allocator_churn` | memory returned and requested again |
+| CPU busy-wait (150 us, 1000 us) | `cpu_stall` | the CPU is busy elsewhere |
+
+Every case runs on every base config, with a fresh baseline right before each
+candidate. Bases are split: two SmolLM2-360M shapes are the dev set, and a
+different model (Qwen2.5-0.5B) plus an unseen shape are held out. A diagnoser
+sees the measured evidence only, never the configs, and is scored on
+detection, root cause, and false alarms on the controls.
+
+Two reference diagnosers are included: rules over trace features
+(`rules_on_trace`) and the same detection without a trace (`timing_only`).
+They are baselines to beat. The rules were written before any GPU run of the
+suite, so some may well be wrong, and the score will say so. One known open
+point: whether the profiler records allocator calls at all, which the
+`allocator_churn` rule depends on. Results from the RTX 5070 are not published
+yet.
+
+Published systems that diagnose slowdowns from traces in production (FLARE,
+PerfTracker) and trace anti-pattern detection (TorchTraceAP) motivated this;
+the cases here are small, single-GPU and injected, which is what makes the
+ground truth exact.
+
 ## How it works
 
 ```
@@ -250,6 +290,9 @@ mib noise --tag noise --figures docs/figures          # false alarms, detection 
 # Training step: timed only if the loss matches a reference loop and weights move
 mib train --config configs/train_smollm2_360m.json
 mib train --config configs/train_fault_frozen_layers.json   # -> wrong_result
+
+# Diagnosis task set: collect evidence for every case, then score the diagnosers
+mib cases --tag diag && mib diagnose --tag diag
 ```
 
 Development checks (CI runs the same on CPU, with a tiny random Llama; GPU-only

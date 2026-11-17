@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -89,6 +90,19 @@ def build_parser() -> argparse.ArgumentParser:
     noise.add_argument("--json", type=Path, help="also write the full report as JSON")
     noise.add_argument("--figures", type=Path, help="also write detection figures here")
 
+    cases = sub.add_parser(
+        "cases", help="run a diagnosis suite: baseline + candidate evidence per case"
+    )
+    cases.add_argument("--suite", type=Path, default=Path("configs/diagnosis_suite.json"))
+    cases.add_argument("--tag", required=True)
+    cases.add_argument("--results", type=Path, default=Path("results/diagnosis.jsonl"))
+    cases.add_argument("--traces", type=Path, default=Path("traces/diagnosis"))
+    cases.add_argument("--keep-traces", action="store_true")
+    cases.add_argument("--allow-cpu", action="store_true")
+    diagnose = sub.add_parser("diagnose", help="score the reference diagnosers on collected cases")
+    diagnose.add_argument("--tag", required=True)
+    diagnose.add_argument("--results", type=Path, default=Path("results/diagnosis.jsonl"))
+    diagnose.add_argument("--json", type=Path, help="also write the full report as JSON")
     table = sub.add_parser("table", help="print one sweep tag as a Markdown table")
     table.add_argument("--tag", required=True)
     table.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
@@ -155,7 +169,14 @@ def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
         name += f"-{config.decode_mode}"
     trace_path = out_dir / f"{name}.trace.json"
     capture_trace(
-        model, input_ids, config.output_len, trace_path, config.regression, config.decode_mode
+        model,
+        input_ids,
+        config.output_len,
+        trace_path,
+        config.regression,
+        config.decode_mode,
+        config.step_delay_us,
+        config.regression_level,
     )
     report = analyze(trace_path)
     untraced_us = metrics.percentile(baseline.itl_ms, 50) * 1000
@@ -285,6 +306,31 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "noise":
         return cmd_noise(args.results, args.tag, args.json, args.figures)
+    if args.command == "cases":
+        from miniinferbench.diagnosis import Suite, collect
+
+        written = collect(
+            Suite.load(args.suite),
+            args.results,
+            args.tag,
+            args.traces,
+            require_cuda=not args.allow_cpu,
+            keep_traces=args.keep_traces,
+        )
+        print(f"{written} cases written to {args.results}")
+        return 0
+    if args.command == "diagnose":
+        from miniinferbench.diagnosis import DIAGNOSERS, format_scores, load_cases, score
+
+        collected = load_cases(args.results, args.tag)
+        if not collected:
+            print(f"no cases with tag {args.tag!r} in {args.results}", file=sys.stderr)
+            return 1
+        report = {name: score(collected, diagnoser) for name, diagnoser in DIAGNOSERS.items()}
+        if args.json:
+            args.json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        print(format_scores(report))
+        return 0
     if args.command == "trace":
         return cmd_trace(args.config, args.out)
     if args.command == "plot":

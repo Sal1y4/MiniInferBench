@@ -123,9 +123,8 @@ def test_step_delay_slows_decode_and_keeps_the_output(tmp_path: Path, tiny: None
     plain, delayed = read_records(results)
     assert plain["status"] in ("ok", "unstable") and delayed["status"] in ("ok", "unstable")
     assert delayed["correctness"]["kind"] == "exact"
-    # 5 decode steps x 5 ms of busy-wait each.
-    extra = min(delayed["raw"]["e2e_wall_ms"]) - min(plain["raw"]["e2e_wall_ms"])
-    assert extra >= 24.0
+    # Every decode step busy-waits 5 ms, so no gap can be shorter. (Comparing
+    # end-to-end times of the two records would depend on machine load.)
     assert min(gap for run in delayed["raw"]["itl_ms"] for gap in run) >= 5.0
 
 

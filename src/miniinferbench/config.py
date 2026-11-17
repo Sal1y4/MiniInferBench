@@ -11,10 +11,18 @@ import dataclasses
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, get_args
 
 Dtype = Literal["bfloat16", "float16", "float32"]
-Regression = Literal["none", "host_sync_each_step", "no_kv_cache"]
+Regression = Literal[
+    "none",
+    "host_sync_each_step",
+    "no_kv_cache",
+    "sorted_probs_each_step",
+    "per_row_bookkeeping",
+    "empty_cache_each_step",
+]
+REGRESSIONS: tuple[Regression, ...] = get_args(Regression)
 DecodeMode = Literal["eager", "static", "compiled", "cuda_graph"]
 
 
@@ -67,6 +75,8 @@ class BenchmarkConfig(JsonConfig):
         warmup_runs: Full prefill+decode runs executed before measuring.
         measure_runs: Measured runs; each one contributes one set of samples.
         regression: Deliberately injected slowdown for case studies; "none" normally.
+        regression_level: How many times the injected work is repeated per
+            decode step, for the regressions where that makes sense.
         decode_mode: "eager" (dynamic KV cache, one launch per kernel);
             "static" (static KV cache, still eager); "compiled" (static cache,
             torch.compile fuses ops, kernels still launched one by one);
@@ -85,11 +95,12 @@ class BenchmarkConfig(JsonConfig):
     warmup_runs: int = 2
     measure_runs: int = 5
     regression: Regression = "none"
+    regression_level: int = 1
     decode_mode: DecodeMode = "eager"
     step_delay_us: int = 0
 
     def __post_init__(self) -> None:
-        positive = ("batch_size", "input_len", "output_len", "measure_runs")
+        positive = ("batch_size", "input_len", "output_len", "measure_runs", "regression_level")
         for name in positive:
             value = getattr(self, name)
             if not isinstance(value, int) or isinstance(value, bool) or value < 1:
@@ -100,7 +111,7 @@ class BenchmarkConfig(JsonConfig):
                 raise ConfigError(f"{name} must be an integer >= 0, got {value!r}")
         if self.dtype not in ("bfloat16", "float16", "float32"):
             raise ConfigError(f"unsupported dtype {self.dtype!r}")
-        if self.regression not in ("none", "host_sync_each_step", "no_kv_cache"):
+        if self.regression not in REGRESSIONS:
             raise ConfigError(f"unknown regression {self.regression!r}")
         if self.decode_mode not in ("eager", "static", "compiled", "cuda_graph"):
             raise ConfigError(f"unknown decode_mode {self.decode_mode!r}")

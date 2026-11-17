@@ -102,6 +102,7 @@ def run_benchmark(
             config.regression,
             tie_tolerance,
             config.decode_mode,
+            config.regression_level,
         ),
     )
     if not result.correctness.matches:
@@ -115,6 +116,7 @@ def run_benchmark(
             config.regression,
             config.decode_mode,
             config.step_delay_us,
+            config.regression_level,
         )
 
     for _ in range(config.warmup_runs):
