@@ -1,0 +1,1663 @@
+{
+  "rules_on_trace": {
+    "excluded": 0,
+    "splits": {
+      "dev": {
+        "faults": 11,
+        "detected": 6,
+        "cause_correct": 5,
+        "absorbed": 7,
+        "controls": 10,
+        "false_alarms": 0,
+        "confusion": {
+          "none": {
+            "none": 10
+          },
+          "host_sync": {
+            "none": 1,
+            "host_sync": 1
+          },
+          "growing_work": {
+            "host_sync": 1,
+            "none": 1
+          },
+          "wasted_gpu_work": {
+            "none": 1
+          },
+          "launch_overhead": {
+            "none": 1
+          },
+          "allocator_churn": {
+            "none": 1,
+            "allocator_churn": 1
+          },
+          "cpu_stall": {
+            "cpu_stall": 3
+          }
+        },
+        "detection_rate": 0.5454545454545454,
+        "root_cause_rate": 0.45454545454545453,
+        "false_alarm_rate": 0.0
+      },
+      "heldout": {
+        "faults": 19,
+        "detected": 7,
+        "cause_correct": 2,
+        "absorbed": 8,
+        "controls": 15,
+        "false_alarms": 2,
+        "confusion": {
+          "none": {
+            "none": 13,
+            "cpu_stall": 2
+          },
+          "growing_work": {
+            "host_sync": 3
+          },
+          "wasted_gpu_work": {
+            "host_sync": 1,
+            "none": 1
+          },
+          "launch_overhead": {
+            "none": 4,
+            "cpu_stall": 1
+          },
+          "cpu_stall": {
+            "none": 5,
+            "cpu_stall": 1
+          },
+          "host_sync": {
+            "host_sync": 1
+          },
+          "allocator_churn": {
+            "none": 2
+          }
+        },
+        "detection_rate": 0.3684210526315789,
+        "root_cause_rate": 0.10526315789473684,
+        "false_alarm_rate": 0.13333333333333333
+      }
+    },
+    "cases": [
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.06417204029791868,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.013606332221957063,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.0518940291728498,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.009882994840174297,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7705054301874116,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": 0.0709565962640275,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "host_sync",
+        "measured_slowdown": 1.070939767119615,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.01 -> 1.17",
+          "blocking host calls per step 0.02 -> 2.02"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.016445516444816177,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.029998457467198314,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.032045200357054604,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.11140780031673958,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.012627457584341695,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "cpu_stall",
+        "measured_slowdown": 0.15555769710690281,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.01 -> 1.01",
+          "blocking host calls per step 0.02 -> 0.02",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 1334 -> 1334",
+          "-3% of the added step time has a kernel running"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "cpu_stall",
+        "measured_slowdown": 0.22942493391533203,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.01 -> 1.01",
+          "blocking host calls per step 0.02 -> 0.02",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 1334 -> 1334",
+          "-0% of the added step time has a kernel running"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.0032013448368064523,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.024917205016074084,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.16735437083128613,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.1555110710185209,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.8192084682905304,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "host_sync",
+        "measured_slowdown": 0.145846405788721,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "blocking host calls per step 0.02 -> 2.02"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "none",
+        "measured_slowdown": 0.09348981969459436,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.03710896615840831,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.007212823730865958,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.13943662317301497,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.0013288961758455287,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "allocator_churn",
+        "measured_slowdown": 1.0416496553700463,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "blocking host calls per step 0.02 -> 0.02",
+          "allocator calls per step 0.00 -> 2.16"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "cpu_stall",
+        "measured_slowdown": 0.15444175743613187,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "blocking host calls per step 0.02 -> 0.02",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 1302 -> 1302",
+          "1% of the added step time has a kernel running"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": -0.023687991608850267,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.09624188271523926,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "cpu_stall",
+        "measured_slowdown": 0.20293362167125095,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "blocking host calls per step 0.02 -> 0.02",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 1030 -> 1030",
+          "23% of the added step time has a kernel running"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.20255930459771798,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "cpu_stall",
+        "measured_slowdown": 0.3153499915057434,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.01",
+          "blocking host calls per step 0.02 -> 0.01",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 1030 -> 1030",
+          "-1% of the added step time has a kernel running"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.741454832140525,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": 0.008877290494744505,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "host_sync",
+        "measured_slowdown": 1.4841722320876154,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.12",
+          "blocking host calls per step 0.02 -> 2.02"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.10599847094238035,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "host_sync",
+        "measured_slowdown": 0.26246682569687607,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "blocking host calls per step 0.02 -> 4.02"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.041134311385811584,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.15785141074877918,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": -0.053048848141070915,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.04942965285056333,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.12306980356239117,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.07169048599242278,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.12325784573182585,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.1014295088411763,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.0213506415422674,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7563475164669918,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "host_sync",
+        "measured_slowdown": 0.47567738467032217,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "blocking host calls per step 0.02 -> 2.02"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "host_sync",
+        "measured_slowdown": 0.32939581912625426,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.22",
+          "blocking host calls per step 0.02 -> 3.02"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.31567308860200605,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.008637875398079142,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.001897611550591649,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "cpu_stall",
+        "measured_slowdown": 0.44435358867229,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "blocking host calls per step 0.02 -> 0.02",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 982 -> 998",
+          "5% of the added step time has a kernel running"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.1203533757542592,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "cpu_stall",
+        "measured_slowdown": 0.10237660331803777,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "blocking host calls per step 0.02 -> 0.02",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 982 -> 982",
+          "-51% of the added step time has a kernel running"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.06676838436118215,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.004172886500055539,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.07026281685738667,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.12660495804942395,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.17812578163878,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7501934829573808,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": -0.018117929633170493,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "host_sync",
+        "measured_slowdown": 1.1795541886089493,
+        "absorbed": false,
+        "notes": [
+          "busy time growth along the sequence 1.01 -> 1.24",
+          "blocking host calls per step 0.02 -> 2.02"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.1921828173775727,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.12632109245578338,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.09195353795902661,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.06002240331728026,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.03966635973593324,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.022230674127768024,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.13478117442211146,
+        "absorbed": false,
+        "notes": []
+      }
+    ]
+  },
+  "timing_only": {
+    "excluded": 0,
+    "splits": {
+      "dev": {
+        "faults": 11,
+        "detected": 6,
+        "cause_correct": 0,
+        "absorbed": 7,
+        "controls": 10,
+        "false_alarms": 0,
+        "confusion": {
+          "none": {
+            "none": 10
+          },
+          "host_sync": {
+            "none": 1,
+            "unknown": 1
+          },
+          "growing_work": {
+            "unknown": 1,
+            "none": 1
+          },
+          "wasted_gpu_work": {
+            "none": 1
+          },
+          "launch_overhead": {
+            "none": 1
+          },
+          "allocator_churn": {
+            "none": 1,
+            "unknown": 1
+          },
+          "cpu_stall": {
+            "unknown": 3
+          }
+        },
+        "detection_rate": 0.5454545454545454,
+        "root_cause_rate": 0.0,
+        "false_alarm_rate": 0.0
+      },
+      "heldout": {
+        "faults": 19,
+        "detected": 7,
+        "cause_correct": 0,
+        "absorbed": 8,
+        "controls": 15,
+        "false_alarms": 2,
+        "confusion": {
+          "none": {
+            "none": 13,
+            "unknown": 2
+          },
+          "growing_work": {
+            "unknown": 3
+          },
+          "wasted_gpu_work": {
+            "unknown": 1,
+            "none": 1
+          },
+          "launch_overhead": {
+            "none": 4,
+            "unknown": 1
+          },
+          "cpu_stall": {
+            "none": 5,
+            "unknown": 1
+          },
+          "host_sync": {
+            "unknown": 1
+          },
+          "allocator_churn": {
+            "none": 2
+          }
+        },
+        "detection_rate": 0.3684210526315789,
+        "root_cause_rate": 0.0,
+        "false_alarm_rate": 0.13333333333333333
+      }
+    },
+    "cases": [
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.06417204029791868,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.013606332221957063,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.0518940291728498,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.009882994840174297,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7705054301874116,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": 0.0709565962640275,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "unknown",
+        "measured_slowdown": 1.070939767119615,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 0.99 -> 1.17"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.016445516444816177,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.029998457467198314,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.032045200357054604,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.11140780031673958,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.012627457584341695,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "unknown",
+        "measured_slowdown": 0.15555769710690281,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 0.99"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "unknown",
+        "measured_slowdown": 0.22942493391533203,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 0.99 -> 0.99"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.0032013448368064523,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.024917205016074084,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.16735437083128613,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.1555110710185209,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.8192084682905304,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "unknown",
+        "measured_slowdown": 0.145846405788721,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "none",
+        "measured_slowdown": 0.09348981969459436,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.03710896615840831,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.007212823730865958,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.13943662317301497,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.0013288961758455287,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "unknown",
+        "measured_slowdown": 1.0416496553700463,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.01 -> 1.14"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "unknown",
+        "measured_slowdown": 0.15444175743613187,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": -0.023687991608850267,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.09624188271523926,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "unknown",
+        "measured_slowdown": 0.20293362167125095,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.02 -> 1.01"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.20255930459771798,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "unknown",
+        "measured_slowdown": 0.3153499915057434,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.741454832140525,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": 0.008877290494744505,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "unknown",
+        "measured_slowdown": 1.4841722320876154,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.01 -> 1.11"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.10599847094238035,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "unknown",
+        "measured_slowdown": 0.26246682569687607,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.06"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.041134311385811584,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.15785141074877918,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": -0.053048848141070915,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.04942965285056333,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.12306980356239117,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.07169048599242278,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.12325784573182585,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.1014295088411763,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.0213506415422674,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7563475164669918,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "unknown",
+        "measured_slowdown": 0.47567738467032217,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.01 -> 1.01"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "unknown",
+        "measured_slowdown": 0.32939581912625426,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 0.99 -> 1.01"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.31567308860200605,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.008637875398079142,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.001897611550591649,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "unknown",
+        "measured_slowdown": 0.44435358867229,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.1203533757542592,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "unknown",
+        "measured_slowdown": 0.10237660331803777,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.06676838436118215,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.004172886500055539,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.07026281685738667,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.12660495804942395,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.17812578163878,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7501934829573808,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": -0.018117929633170493,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "unknown",
+        "measured_slowdown": 1.1795541886089493,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.01 -> 1.22"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.1921828173775727,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.12632109245578338,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.09195353795902661,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.06002240331728026,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.03966635973593324,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.022230674127768024,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.13478117442211146,
+        "absorbed": false,
+        "notes": []
+      }
+    ]
+  }
+}
