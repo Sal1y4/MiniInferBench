@@ -22,6 +22,14 @@ On SmolLM2-360M and an RTX 5070 (WSL2):
    host-sync regression showed up in P99 latency (+70%) while the median stayed
    flat.
 
+4. **Measured the harness's own error rates.** On 190 pairs of identical
+   runs, a bootstrap test raised false alarms 13% to 26% of the time and a
+   fixed 5% rule on P99 latency 61% to 82%; the rule the harness shipped with
+   never did, but caught a 10% slowdown only 28% of the time. See
+   [How far can a comparison be trusted?](#how-far-can-a-comparison-be-trusted)
+5. **Extended it to training.** A training step is timed only after it is
+   shown to train; two injected "fast but not learning" faults are rejected.
+
 ![Decode throughput, eager vs CUDA graph](docs/figures/modes_throughput_vs_batch.png)
 
 ## Results: SmolLM2-360M on an RTX 5070
@@ -47,7 +55,9 @@ All 36 points match `generate()` exactly; 20 are `ok`, 16 `unstable`
 
 ![Decode throughput vs batch size](docs/figures/throughput_vs_batch.png)
 
-**Finding 1: decode time is set by the CPU launching kernels, not by the GPU.**
+**Finding 1: decode time is set by launching kernels, not by GPU compute.**
+(Later evidence narrows where: the calling thread has slack, see
+[How far can a comparison be trusted?](#how-far-can-a-comparison-be-trusted))
 
 - ITL P50 stays between 13.9 and 14.9 ms at every point with output 128 or
   256, whatever the batch size or input length, so decode throughput grows almost linearly with batch size
@@ -160,9 +170,8 @@ larger end-to-end CV of the two runs):
 - **No KV cache** recomputes the whole sequence every step: every decode metric
   moves, prefill does not. Easy to catch.
 - **A host sync each step** (`token.cpu()`, a common bug when checking for EOS)
-  does not move the median at all. Because decode is launch-bound, the GPU has
-  usually finished by the time the CPU asks, so the sync is free most of the
-  time and stalls only occasionally. It shows up only in the tail (ITL P99) and
+  does not move the median at all: the sync costs little most of the time and
+  stalls only occasionally. It shows up only in the tail (ITL P99) and
   in the trace (blocking host calls 2 → 256, same kernels, same GPU busy time).
   A dashboard that tracks only P50 or end-to-end time would miss it. The TTFT
   change is outside its band, but this regression only touches the decode loop,
@@ -182,6 +191,101 @@ The reference was wrong: `GenerationConfig(eos_token_id=None, min_new_tokens=n)`
 does not disable EOS. It falls back to the model's EOS, and `min_new_tokens`
 then masks it, forcing the runner-up token. Fixed with `eos_token_id=[]`, with
 a regression test that fails on the old config.
+
+## How far can a comparison be trusted?
+
+`mib compare` answers "changed" or "within noise". This section measures how
+often such an answer is wrong, for six decision rules, on the same workload
+as the case study (batch 4, input 512, output 128). One record is 5 measured
+runs; every rule sees one value per run.
+
+- **False alarms.** 20 records of the unchanged config give 190 A/A pairs.
+  Any "changed" verdict on them is wrong.
+- **Sensitivity.** 20 more records each at three injected delays, interleaved
+  with the baseline records. The slowdown each delay really caused is
+  measured: +3.2%, +4.3% and +10.5% end to end.
+
+The whole experiment was run twice, about half an hour apart
+([`results-published/noise/`](results-published/noise/)). End-to-end time:
+
+| Rule | False alarms, session 1 | False alarms, session 2 | Detects +3.2% | Detects +4.3% | Detects +10.5% |
+| --- | --- | --- | --- | --- | --- |
+| fixed 5% | 0.0% | 0.0% | 14.5% | 38.2% | 98.5% |
+| fixed 7% | 0.0% | 0.0% | 8.2% | 12.2% | 88.8% |
+| `cv_band` (what `mib compare` uses) | 0.0% | 0.0% | 4.8% | 4.8% | 28.0% |
+| 95% CIs do not overlap | 1.1% | 1.1% | 6.2% | 20.5% | 75.8% |
+| bootstrap of the mean | 25.8% | 12.6% | 30.2% | 62.0% | 98.8% |
+| Mann-Whitney rank test | 8.4% | 4.7% | 11.5% | 39.0% | 94.8% |
+
+![Detection rate by rule](docs/figures/detection_e2e_wall_ms.png)
+
+- **The rule `mib compare` ships with is safe but blunt.** No false alarms,
+  but it catches a 10% slowdown only 28% of the time. A fixed 5% threshold
+  has the same false-alarm rate here and catches it 98.5% of the time.
+- **A bootstrap over 5 runs is not a 5% test.** It raised false alarms on 13%
+  to 26% of identical pairs (12% to 51% on the other metrics). Five values
+  understate the spread, and resampling them cannot add what is missing.
+- **Runs inside a record are not independent of the record.** On median ITL
+  the rank test flagged 14.7% and 35.8% of A/A pairs, far above its nominal
+  5%: the five runs of one record sit closer to each other than to the runs
+  of the next record. Any test that treats them as independent draws is
+  overconfident. Fixed thresholds had no false alarms on that metric.
+- **Fixed thresholds fail on tails.** On ITL P99 a fixed 5% rule flagged 61%
+  and 82% of identical pairs. P99 of 127 gaps is nearly the maximum.
+- **The error rates themselves move.** Same machine, same code, half an hour
+  apart: the fixed 5% rule on TTFT went from 10% to 41% false alarms.
+- **Nothing here reliably sees below about 5%.** By rescaling the A/A records,
+  the smallest end-to-end slowdown caught 80% of the time is 5% to 7% for the
+  rules with an acceptable false-alarm rate.
+
+One more result came from the injection itself. In session 1 the delay was a
+plain CPU busy-wait in every decode step, and 750 us per step (5% of a step)
+changed end-to-end time by +0.2%: the delay was absorbed. So the Python thread
+is not what limits decode here; it runs ahead of the kernels it has queued.
+The low GPU busy fraction and the CUDA-graph speedup still say decode is bound
+by launching kernels one by one, but that cost sits downstream of the calling
+thread (driver or WSL2 submission path; not pinned down). Session 2 drains the
+GPU before each wait, which makes the delay count and costs something itself:
+150 us of waiting added about 480 us per step, and ITL P99 more than doubled.
+The realized slowdown is therefore measured, never assumed.
+
+Limits: one workload, one machine under WSL2, n = 5 runs per record.
+
+## Training step: fast is not enough
+
+`mib train` times a training step of SmolLM2-360M (batch 4, 256 tokens,
+AdamW) in three phases. Before any timing, a check phase runs five steps and
+requires that the loss follows a plain reference loop (the model's own loss,
+default AdamW), that every trainable parameter gets a non-zero gradient and
+changes, and that nothing is frozen. Only then are 5 x 20 steps measured
+([`results-published/train/`](results-published/train/)).
+
+| Config | Check | Step P50 | Forward | Backward | Optimizer | Tokens/s |
+| --- | --- | --- | --- | --- | --- | --- |
+| bf16 autocast, fused AdamW | passed | 109.2 ms | 30.5 | 60.8 | 17.5 | 8,493 |
+| float32 | passed | 196.9 ms | 70.4 | 109.0 | 17.5 | 5,199 |
+| bf16, AdamW not fused | passed | 140.9 ms | 30.4 | 60.6 | 49.6 | 6,992 |
+| bf16, fused, `torch.compile` | passed | 91.3 ms | 24.9 | 48.9 | 17.5 | 11,193 |
+| injected: layers frozen | **`wrong_result`** | not timed | | | | |
+| injected: learning rate 0 | **`wrong_result`** | not timed | | | | |
+
+- The phase split shows where each option acts: precision changes forward
+  and backward and leaves the optimizer alone; the fused optimizer changes
+  only the optimizer phase (49.6 to 17.5 ms); compilation takes about 20% off
+  forward and backward.
+- The two injected faults would both have produced a timing. The check rejects them with the reason: "289
+  parameters are frozen" and "290 trainable parameters never changed". With a
+  learning rate of 0 the gradient norm is normal (19.4), so a gradient check
+  alone would pass; the parameter checksum and the flat loss catch it.
+- The check has a tolerance because bf16 and compilation change the
+  arithmetic: the loss differed from the reference by at most 1.4e-4
+  (relative) in the passing runs and by 8e-3 or more in the faulty ones.
+- Not explained: in the first config some steps take about 167 ms instead of
+  109 (P95 167.4 ms, end-to-end CV 0.043); the compiled and float32 runs do
+  not show it (CV 0.002).
+
+One run per config on one machine; the table shows what the task reports,
+not a tuned training setup. Tokens/s is from mean end-to-end time.
 
 ## Diagnosis task set
 
@@ -255,7 +359,6 @@ record (status, manifest, raw samples, evidence) <── stability check <──
   change, and nothing may be frozen. A fast step that does not train is
   `wrong_result`, not a speedup. `train_fault_*.json` configs inject two such
   failures (frozen layers, zero learning rate) to show the gate catches them.
-  Numbers from the RTX 5070 are not published yet.
 
 | Status | Meaning |
 | --- | --- |
@@ -289,7 +392,7 @@ mib noise --tag noise --figures docs/figures          # false alarms, detection 
 
 # Training step: timed only if the loss matches a reference loop and weights move
 mib train --config configs/train_smollm2_360m.json
-mib train --config configs/train_fault_frozen_layers.json   # -> wrong_result
+mib train --config configs/train_fault_frozen_layers.json   # -> wrong_result, exit code 1
 
 # Diagnosis task set: collect evidence for every case, then score the diagnosers
 mib cases --tag diag && mib diagnose --tag diag
@@ -312,7 +415,7 @@ ruff check . && ruff format --check . && mypy && pytest -q
   ~2880 MHz and 46–57 °C, so thermal throttling is ruled out.
 - **WSL2, not native Linux.** The GPU is reached through the WSL2 paravirtualized
   driver and the CPU is scheduled by the Windows host. Since decode here is
-  bound by CPU-side kernel launches, absolute ITL on native Linux may well be
+  bound by per-kernel launch cost, absolute ITL on native Linux may well be
   lower; the shape of the results (flat ITL across batch sizes) is expected to
   hold but has not been checked on native Linux.
 - **One model, one GPU, one framework.** Results describe HF Transformers eager

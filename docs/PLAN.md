@@ -27,12 +27,12 @@
 
 1. **Measurement trust.** A/A runs for the false-positive rate of each
    comparison rule, calibrated injected slowdowns for the smallest detectable
-   regression (`mib repeat`, `mib noise`). Code is in; results from the RTX 5070
-   are pending.
+   regression (`mib repeat`, `mib noise`). Done: two sessions published under
+   `results-published/noise/`, written up in the README.
 2. **Verified training-step task.** Forward + backward + optimizer with
    per-phase timing; timed only if the loss matches a reference loop and
-   gradients actually flow. Code is in (`mib train`); results from the RTX
-   5070 are pending.
+   gradients actually flow. Done: `results-published/train/`,
+   written up in the README.
 3. **Diagnosis task set.** Output-preserving slowdowns with known root causes,
    taken from published production cases, plus unchanged and legitimately
    changed controls; scores a diagnoser on detection, root cause and false alarms.
