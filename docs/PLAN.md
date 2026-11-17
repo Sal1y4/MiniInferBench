@@ -34,11 +34,11 @@
    gradients actually flow. Done: `results-published/train/`,
    written up in the README.
 3. **Diagnosis task set.** Output-preserving slowdowns with known root causes,
-   taken from published production cases, plus unchanged and legitimately
+   modelled on common mistakes, plus unchanged and legitimately
    changed controls; scores a diagnoser on detection, root cause and false alarms.
-   Code is in (`mib cases`, `mib diagnose`); results from the RTX 5070 are
-   pending. After the first run: tune the rules on the dev split only, then
-   report the held-out score once.
+   Done: two runs under `results-published/diagnosis/`, written up in the
+   README. Open: detection is the weak part (more runs per side, or a
+   sequential test); the `cpu_stall` rule is untested on a real detection.
 
 ## Later
 

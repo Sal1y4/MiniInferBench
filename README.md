@@ -29,6 +29,11 @@ On SmolLM2-360M and an RTX 5070 (WSL2):
    [How far can a comparison be trusted?](#how-far-can-a-comparison-be-trusted)
 5. **Extended it to training.** A training step is timed only after it is
    shown to train; two injected "fast but not learning" faults are rejected.
+6. **Built a diagnosis task set with known answers.** 45 injected slowdowns
+   and 25 controls. Trace rules named the right root cause for all 14 faults
+   they flagged and raised no false alarm, but with 5 runs per side half of
+   the real slowdowns went unnoticed. The first run of the suite also exposed
+   a flaw in its own method: timing after profiling in the same process.
 
 ![Decode throughput, eager vs CUDA graph](docs/figures/modes_throughput_vs_batch.png)
 
@@ -316,11 +321,71 @@ detection, root cause, and false alarms on the controls.
 
 Two reference diagnosers are included: rules over trace features
 (`rules_on_trace`) and the same detection without a trace (`timing_only`).
-They are baselines to beat. The rules were written before any GPU run of the
-suite, so some may well be wrong, and the score will say so. One known open
-point: whether the profiler records allocator calls at all, which the
-`allocator_churn` rule depends on. Results from the RTX 5070 are not published
-yet.
+Detection is a rank test on 5 runs per side plus a 3% minimum effect. They
+are baselines to beat.
+
+### Results on the RTX 5070
+
+70 cases (14 per base), run `5070-diag-v2`
+([`results-published/diagnosis/`](results-published/diagnosis/)):
+
+| Diagnoser | Split | Faults flagged | Root cause right | False alarms on controls |
+| --- | --- | --- | --- | --- |
+| `rules_on_trace` | dev | 3/12 | 3/12 | 0/10 |
+| `rules_on_trace` | held out | 11/17 | 11/17 | 0/15 |
+| `timing_only` | dev | 3/12 | 0/12 | 0/10 |
+| `timing_only` | held out | 11/17 | 0/17 | 0/15 |
+
+By root cause, both splits together (`rules_on_trace`):
+
+| Root cause | No measurable slowdown | Scored | Flagged | Cause right |
+| --- | --- | --- | --- | --- |
+| `growing_work` | 0 | 5 | 4 | 4 |
+| `host_sync` | 0 | 5 | 3 | 3 |
+| `wasted_gpu_work` | 4 | 6 | 4 | 4 |
+| `allocator_churn` | 0 | 5 | 2 | 2 |
+| `launch_overhead` | 5 | 5 | 1 | 1 |
+| `cpu_stall` | 7 | 3 | 0 | 0 |
+| controls | | 25 | 0 | |
+
+- **Naming the cause was the easy part; noticing the slowdown was not.** Every
+  one of the 14 flagged faults got the right cause from the trace, on a model
+  the rules had never been run on. But 15 of 29 real slowdowns were not
+  flagged at all. With 5 runs per side, one slow baseline run or one fast
+  candidate run is enough for the rank test to stay silent: the
+  `empty_cache` case on dev base 0 took 15.0, 16.5, 35.9, 38.7 and 39.3 ms
+  per token against a 15 ms baseline (+138% by the median) and was missed.
+- **Timings alone named no cause**, including the one they could in principle
+  see: over 128 steps the growth from a missing KV cache is too small to show
+  as a trend in inter-token latency.
+- **No control was flagged**, including the CUDA-graph one, whose trace
+  differs from its baseline more than any fault's does.
+- **16 of 45 injected faults did not slow the run down** (under 1% per token)
+  and are not scored. Seven of the ten CPU stalls are among them: as in the
+  noise study, a busy-wait in the calling thread is absorbed. The `cpu_stall`
+  rule therefore has not been exercised on a real detection.
+
+How these numbers came about, since it matters for what they are worth:
+
+- The first run of the suite (`5070-diag-v1`, also published) timed and traced
+  each case back to back in one process. 109 of its 140 timed runs were
+  unstable and unchanged pairs differed by up to 20%. The profiler was the
+  suspect: `scripts/profiler_aftereffect.py` times one config before and after
+  a single trace. In one process the runs after the trace were 18% slower with
+  a CV of 0.13 (0.01 before); in a second process the median held and the CV
+  rose from 0.003 to 0.08. Collection now times every case first and traces
+  afterwards; unstable timed runs fell to 39 of 140, which is still far from
+  quiet.
+- The cause rules were revised once, between the two runs, using the dev
+  traces of the first run (a sort brings its own blocking host calls; a
+  missing KV cache shows as more time per kernel). The held-out score above
+  is the first and only scoring of the revised rules on held-out cases. It is
+  not fully blind: the held-out rows of the first run's report were visible
+  while debugging it.
+- The dev rate is lower than the held-out rate. The cause rules are not the
+  reason (every flagged case was named correctly in both splits); detection
+  is, and with 12 and 17 scored cases the two rates are not far apart
+  statistically.
 
 Published systems that diagnose slowdowns from traces in production (FLARE,
 PerfTracker) and trace anti-pattern detection (TorchTraceAP) motivated this;
