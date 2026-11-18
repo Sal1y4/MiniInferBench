@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import sys
 from pathlib import Path
@@ -103,6 +104,24 @@ def build_parser() -> argparse.ArgumentParser:
     diagnose.add_argument("--tag", required=True)
     diagnose.add_argument("--results", type=Path, default=Path("results/diagnosis.jsonl"))
     diagnose.add_argument("--json", type=Path, help="also write the full report as JSON")
+    gen = sub.add_parser(
+        "gen", help="time and trace one generation path: real generate() or the minimal loop"
+    )
+    gen.add_argument("--config", type=Path, help="JSON config file (defaults if omitted)")
+    gen.add_argument("--path", choices=("generate", "loop"), default="generate")
+    gen.add_argument("--label", help="group name for `mib check` (default: path@transformers)")
+    gen.add_argument("--results", type=Path, default=Path("results/gen.jsonl"))
+    gen.add_argument("--traces", type=Path, default=Path("traces/gen"))
+    gen.add_argument("--keep-trace", action="store_true")
+    gen.add_argument("--allow-cpu", action="store_true")
+    check = sub.add_parser(
+        "check", help="is one group of `mib gen` records slower than another, and why"
+    )
+    check.add_argument(
+        "labels", nargs="+", help="two or more labels, oldest first; neighbours are compared"
+    )
+    check.add_argument("--results", type=Path, default=Path("results/gen.jsonl"))
+    check.add_argument("--json", type=Path, help="also write the comparisons as JSON")
     table = sub.add_parser("table", help="print one sweep tag as a Markdown table")
     table.add_argument("--tag", required=True)
     table.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
@@ -143,6 +162,30 @@ def _print_table(results: Path, tag: str) -> None:
                 cells.append(f"{value:.2f}")
         head = f"| {c['batch_size']} | {c['input_len']} | {c['output_len']} | {r['status']} | "
         print(head + " | ".join(cells) + " |")
+
+
+def cmd_check(results: Path, labels: list[str], json_path: Path | None) -> int:
+    from miniinferbench.genbench import compare, format_comparison, load_group
+
+    if len(labels) < 2:
+        print("give at least two labels", file=sys.stderr)
+        return 2
+    groups = {label: load_group(results, label) for label in labels}
+    missing = [label for label, group in groups.items() if not group]
+    if missing:
+        print(f"no usable records in {results} for: {', '.join(missing)}", file=sys.stderr)
+        return 1
+    pairs = list(itertools.pairwise(labels))
+    if len(labels) > 2:
+        pairs.append((labels[0], labels[-1]))
+    report = []
+    for old, new in pairs:
+        result = compare(groups[old], groups[new])
+        report.append({"baseline": old, "candidate": new} | result)
+        print(format_comparison(result, old, new), end="\n\n")
+    if json_path:
+        json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return 0
 
 
 def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
@@ -332,6 +375,24 @@ def main(argv: list[str] | None = None) -> int:
             args.json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(format_scores(report))
         return 0
+    if args.command == "gen":
+        from miniinferbench.genbench import default_label, run_generation_task
+        from miniinferbench.results import append_record
+
+        config = BenchmarkConfig.load(args.config) if args.config else BenchmarkConfig()
+        record = run_generation_task(
+            config,
+            args.path,
+            args.traces / "gen.trace.json",
+            require_cuda=not args.allow_cpu,
+            keep_trace=args.keep_trace,
+        )
+        record["label"] = args.label or default_label(record)
+        append_record(args.results, record)
+        print(f"[{record['status']}] {record['label']} -> {args.results}  {record['reason']}")
+        return 0 if record["status"] == "ok" else 1
+    if args.command == "check":
+        return cmd_check(args.results, args.labels, args.json)
     if args.command == "trace":
         return cmd_trace(args.config, args.out)
     if args.command == "plot":

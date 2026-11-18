@@ -24,14 +24,15 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 from torch.profiler import ProfilerActivity, profile, record_function
-from transformers import PreTrainedModel
 
 from miniinferbench.config import DecodeMode, Regression
-from miniinferbench.runner import greedy_decode
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedModel
 
 DECODE_STEP = "decode_step"
 PREFILL = "prefill"
@@ -53,6 +54,10 @@ def capture_trace(
     Uses the same loop as the timed runs, so a trace shows exactly what was
     measured.
     """
+    # Imported here so that the analysis half of this module stays usable in
+    # environments where the decode loop is not (older transformers versions).
+    from miniinferbench.runner import greedy_decode
+
     activities = [ProfilerActivity.CPU]
     if input_ids.device.type == "cuda":
         activities.append(ProfilerActivity.CUDA)
