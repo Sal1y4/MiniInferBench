@@ -34,6 +34,11 @@ On SmolLM2-360M and an RTX 5070 (WSL2):
    they flagged and raised no false alarm, but with 5 runs per side half of
    the real slowdowns went unnoticed. The first run of the suite also exposed
    a flaw in its own method: timing after profiling in the same process.
+7. **Pointed it at real changes.** The real `generate()` costs 4% to 8% more
+   per token than the minimal loop. Across eight `transformers` releases with
+   identical output, one upgrade was 5.3% slower and the newest is 5.8% faster
+   than the oldest. See
+   [Real changes](#real-changes-generate-and-library-upgrades).
 
 ![Decode throughput, eager vs CUDA graph](docs/figures/modes_throughput_vs_batch.png)
 
@@ -392,6 +397,77 @@ PerfTracker) and trace anti-pattern detection (TorchTraceAP) motivated this;
 the cases here are small, single-GPU and injected, which is what makes the
 ground truth exact.
 
+## Real changes: `generate()` and library upgrades
+
+Everything above measures slowdowns that were put there on purpose. This
+part points the same tools at two changes nobody injected: the difference
+between the hand-written loop and the real `model.generate()`, and upgrading
+the `transformers` library. `mib gen` times real `generate()` calls (per-token
+marks come from a pass-through logits processor, so no streamer and no extra
+host copies), and `mib check` compares two groups of records and prints one
+verdict: slower, faster or no change, the most likely cause, and whether the
+output tokens are still the same.
+
+### What does `generate()` cost over a minimal loop?
+
+20 timed runs per side, taken in alternating order, same model and prompts.
+Output tokens are identical in both shapes.
+
+| Shape | Minimal loop | `generate()` | Change | Kernels per step | Blocking host calls per step |
+| --- | --- | --- | --- | --- | --- |
+| batch 4, input 512 | 15.06 ms/token | 15.68 ms/token | +4.1% | 1335 to 1366 | 0.02 to 7.12 |
+| batch 1, input 128 | 14.38 ms/token | 15.57 ms/token | +8.3% | 1303 to 1331 | 0.02 to 10.09 |
+
+So the numbers in the earlier sections are 4% to 8% optimistic for someone
+who calls `generate()` directly, on this model and machine. `mib check`
+labels the cause `launch_overhead` (about 30 extra small kernels per token).
+The trace also shows 7 to 10 blocking host calls per token that the minimal
+loop does not make; the rule set returns one label, and the added-kernel rule
+comes before the host-call rule, so the label names only part of the picture.
+A public report describes the same per-token host calls in `generate()`
+([transformers#43089](https://github.com/huggingface/transformers/issues/43089)).
+
+### Does upgrading `transformers` change speed?
+
+`scripts/version_sweep.py` builds one isolated environment per `transformers`
+version, with the same torch build (2.11.0+cu128), and runs them round-robin:
+4 rounds of 5 timed runs, so 20 runs per version, batch 4, input 512, 128 new
+tokens. All eight versions produced identical tokens.
+
+| transformers | ms per token (median) | vs previous version | Verdict | Kernels per step | Blocking host calls per step |
+| --- | --- | --- | --- | --- | --- |
+| 4.46.3 | 16.31 | | | 1435 | 13.08 |
+| 4.51.3 | 17.16 | +5.3% | slower, cause `unknown` | 1435 | 12.09 |
+| 4.57.6 | 16.27 | -5.2% | faster | 1371 | 12.09 |
+| 5.2.0 | 16.16 | -0.4% | no change | 1367 | 13.09 |
+| 5.4.0 | 15.88 | -1.7% | no change | 1369 | 9.09 |
+| 5.12.1 | 15.93 | +0.3% | no change | 1370 | 9.09 |
+| 5.22.1 | 15.87 | -0.4% | no change | 1366 | 7.12 |
+| 5.23.0 | 15.36 | -3.2% | no change | 1366 | 7.12 |
+
+What this shows, and what it does not:
+
+- **A real slowdown, found but not explained.** 4.51.3 was slower than 4.46.3
+  in each of the four rounds (17.07 to 17.47 ms against 16.15 to 16.82 ms).
+  Kernel count, GPU busy time and host calls are all unchanged, so none of
+  the trace rules fires and the tool answers `unknown` instead of guessing.
+  The cause was not tracked down.
+- **A real speedup with a visible reason.** 4.57.6 launches 64 fewer kernels
+  per step and GPU busy time per step falls from 5177 to 4157 us.
+- **Newest against oldest:** 5.23.0 is 5.8% faster than 4.46.3, with blocking
+  host calls per token down from 13 to 7.
+- **A known regression that does not show here.** A slowdown between 5.2.0
+  and 5.4.0 was reported upstream
+  ([transformers#46693](https://github.com/huggingface/transformers/issues/46693))
+  for long contexts with a different attention backend. This workload does
+  not hit it: 5.4.0 measured 1.7% faster. One workload cannot clear a release.
+- **The gate is conservative.** 5.23.0 measured 3.2% faster than 5.22.1 and
+  was still called "no change": 5.22.1 was noisy (per-round medians 15.04 to
+  17.00 ms) and the rank test did not separate the two groups.
+- One model, one batch shape, one machine, one session. Records:
+  [`results-published/gen/`](results-published/gen/) and
+  [`results-published/versions/`](results-published/versions/).
+
 ## How it works
 
 ```
@@ -461,6 +537,13 @@ mib train --config configs/train_fault_frozen_layers.json   # -> wrong_result, e
 
 # Diagnosis task set: collect evidence for every case, then score the diagnosers
 mib cases --tag diag && mib diagnose --tag diag
+
+# Real changes: time generate() and the minimal loop, then ask for a verdict
+mib gen --config configs/regression_baseline.json --path loop --label loop
+mib gen --config configs/regression_baseline.json --path generate --label generate
+mib check loop generate                               # slower / faster / no change + cause
+python scripts/version_sweep.py --versions 5.22.1 5.23.0   # one venv per version
+mib check generate@5.22.1 generate@5.23.0 --results results/versions.jsonl
 ```
 
 Development checks (CI runs the same on CPU, with a tiny random Llama; GPU-only
@@ -487,12 +570,11 @@ ruff check . && ruff format --check . && mypy && pytest -q
   mode on a small model. They say nothing about vLLM, larger models, or other
   GPUs.
 - **A minimal loop, not `generate()`.** The timed loop has no logits
-  processors, stopping criteria or per-step stop check. HF `generate()`
-  (transformers 5.22.1) reads its stop flag on the host every step, which is
-  the same pattern as the `host_sync_each_step` regression. A quick side check
-  (7 runs each, not a published record) had `generate()` about 5% slower end to
-  end with identical tokens, so these numbers are a little optimistic for
-  users who call `generate()` directly.
+  processors, stopping criteria or per-step stop check. Measured against the
+  real `generate()` it is 4% to 8% faster with identical tokens (see
+  [Real changes](#real-changes-generate-and-library-upgrades)), so the
+  headline numbers are a little optimistic for users who call `generate()`
+  directly.
 - **TTFT in CUDA graph mode has random stalls.** Prefill is eager in both
   modes, yet graph-mode runs show occasional 20-60 ms TTFT outliers (for
   batch 1, input 128, three of five runs). Records report the median TTFT,

@@ -39,6 +39,11 @@
    Done: two runs under `results-published/diagnosis/`, written up in the
    README. Open: detection is the weak part (more runs per side, or a
    sequential test); the `cpu_stall` rule is untested on a real detection.
+4. **Real changes.** The real `generate()` path against the minimal loop,
+   and a sweep over `transformers` releases, compared with `mib check`.
+   Done: `results-published/gen/` and `results-published/versions/`, written
+   up in the README. Open: the 4.46.3 to 4.51.3 slowdown has no named cause;
+   only one workload was swept.
 
 ## Later
 
