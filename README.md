@@ -542,7 +542,8 @@ mib cases --tag diag && mib diagnose --tag diag
 mib gen --config configs/regression_baseline.json --path loop --label loop
 mib gen --config configs/regression_baseline.json --path generate --label generate
 mib check loop generate                               # slower / faster / no change + cause
-python scripts/version_sweep.py --versions 5.22.1 5.23.0   # one venv per version
+python scripts/version_sweep.py --versions 5.22.1 5.23.0 --torch 2.11.0 \
+    --index https://download.pytorch.org/whl/cu128        # one venv per version
 mib check generate@5.22.1 generate@5.23.0 --results results/versions.jsonl
 ```
 
