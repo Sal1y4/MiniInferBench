@@ -11,10 +11,18 @@ import dataclasses
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, get_args
 
 Dtype = Literal["bfloat16", "float16", "float32"]
-Regression = Literal["none", "host_sync_each_step", "no_kv_cache"]
+Regression = Literal[
+    "none",
+    "host_sync_each_step",
+    "no_kv_cache",
+    "sorted_probs_each_step",
+    "per_row_bookkeeping",
+    "empty_cache_each_step",
+]
+REGRESSIONS: tuple[Regression, ...] = get_args(Regression)
 DecodeMode = Literal["eager", "static", "compiled", "cuda_graph"]
 
 
@@ -22,62 +30,18 @@ class ConfigError(ValueError):
     """Raised when a configuration is invalid or cannot be loaded."""
 
 
-@dataclass(frozen=True, slots=True)
-class BenchmarkConfig:
-    """Parameters of one benchmark run.
+class JsonConfig:
+    """Save/load behaviour shared by the config dataclasses: plain JSON, with
+    unknown fields rejected instead of silently ignored."""
 
-    Attributes:
-        model_name: Hugging Face model id or local checkpoint directory.
-        batch_size: Number of sequences decoded together (static batch).
-        input_len: Prompt length in tokens, identical for every sequence.
-        output_len: Number of tokens generated per sequence (EOS is ignored).
-        seed: Seed for the synthetic workload.
-        dtype: Model weight and activation dtype.
-        warmup_runs: Full prefill+decode runs executed before measuring.
-        measure_runs: Measured runs; each one contributes one set of samples.
-        regression: Deliberately injected slowdown for case studies; "none" normally.
-        decode_mode: "eager" (dynamic KV cache, one launch per kernel);
-            "static" (static KV cache, still eager); "compiled" (static cache,
-            torch.compile fuses ops, kernels still launched one by one);
-            "cuda_graph" (compiled and each decode step replayed as a CUDA graph).
-    """
-
-    model_name: str = "HuggingFaceTB/SmolLM2-360M-Instruct"
-    batch_size: int = 1
-    input_len: int = 128
-    output_len: int = 32
-    seed: int = 0
-    dtype: Dtype = "bfloat16"
-    warmup_runs: int = 2
-    measure_runs: int = 5
-    regression: Regression = "none"
-    decode_mode: DecodeMode = "eager"
-
-    def __post_init__(self) -> None:
-        positive = ("batch_size", "input_len", "output_len", "measure_runs")
-        for name in positive:
-            value = getattr(self, name)
-            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
-                raise ConfigError(f"{name} must be a positive integer, got {value!r}")
-        if not isinstance(self.warmup_runs, int) or self.warmup_runs < 0:
-            raise ConfigError(f"warmup_runs must be >= 0, got {self.warmup_runs!r}")
-        if self.dtype not in ("bfloat16", "float16", "float32"):
-            raise ConfigError(f"unsupported dtype {self.dtype!r}")
-        if self.regression not in ("none", "host_sync_each_step", "no_kv_cache"):
-            raise ConfigError(f"unknown regression {self.regression!r}")
-        if self.decode_mode not in ("eager", "static", "compiled", "cuda_graph"):
-            raise ConfigError(f"unknown decode_mode {self.decode_mode!r}")
-        if self.decode_mode != "eager" and self.regression == "no_kv_cache":
-            raise ConfigError("no_kv_cache needs decode_mode 'eager'")
-        if not self.model_name:
-            raise ConfigError("model_name must not be empty")
+    __slots__ = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return dataclasses.asdict(self)
+        return dataclasses.asdict(self)  # type: ignore[call-overload,no-any-return]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
-        known = {field.name for field in dataclasses.fields(cls)}
+        known = {field.name for field in dataclasses.fields(cls)}  # type: ignore[arg-type]
         unknown = sorted(set(data) - known)
         if unknown:
             raise ConfigError(f"unknown config fields: {', '.join(unknown)}")
@@ -95,3 +59,68 @@ class BenchmarkConfig:
         if not isinstance(data, dict):
             raise ConfigError(f"config {path} must contain a JSON object")
         return cls.from_dict(data)
+
+
+@dataclass(frozen=True, slots=True)
+class BenchmarkConfig(JsonConfig):
+    """Parameters of one benchmark run.
+
+    Attributes:
+        model_name: Hugging Face model id or local checkpoint directory.
+        batch_size: Number of sequences decoded together (static batch).
+        input_len: Prompt length in tokens, identical for every sequence.
+        output_len: Number of tokens generated per sequence (EOS is ignored).
+        seed: Seed for the synthetic workload.
+        dtype: Model weight and activation dtype.
+        warmup_runs: Full prefill+decode runs executed before measuring.
+        measure_runs: Measured runs; each one contributes one set of samples.
+        regression: Deliberately injected slowdown for case studies; "none" normally.
+        regression_level: How many times the injected work is repeated per
+            decode step, for the regressions where that makes sense.
+        decode_mode: "eager" (dynamic KV cache, one launch per kernel);
+            "static" (static KV cache, still eager); "compiled" (static cache,
+            torch.compile fuses ops, kernels still launched one by one);
+            "cuda_graph" (compiled and each decode step replayed as a CUDA graph).
+        step_delay_us: CPU busy-wait added to every decode step, in microseconds.
+            A slowdown of known size, used to measure how small a regression
+            the comparison rules can detect; 0 normally.
+        step_delay_sync: Wait for the GPU before the busy-wait. Without it the
+            GPU keeps working through its queue during the wait, so on a
+            GPU-bound workload the delay is absorbed and nothing gets slower.
+            With it the delay adds to every step whatever the bottleneck is.
+    """
+
+    model_name: str = "HuggingFaceTB/SmolLM2-360M-Instruct"
+    batch_size: int = 1
+    input_len: int = 128
+    output_len: int = 32
+    seed: int = 0
+    dtype: Dtype = "bfloat16"
+    warmup_runs: int = 2
+    measure_runs: int = 5
+    regression: Regression = "none"
+    regression_level: int = 1
+    decode_mode: DecodeMode = "eager"
+    step_delay_us: int = 0
+    step_delay_sync: bool = False
+
+    def __post_init__(self) -> None:
+        positive = ("batch_size", "input_len", "output_len", "measure_runs", "regression_level")
+        for name in positive:
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise ConfigError(f"{name} must be a positive integer, got {value!r}")
+        for name in ("warmup_runs", "step_delay_us"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ConfigError(f"{name} must be an integer >= 0, got {value!r}")
+        if self.dtype not in ("bfloat16", "float16", "float32"):
+            raise ConfigError(f"unsupported dtype {self.dtype!r}")
+        if self.regression not in REGRESSIONS:
+            raise ConfigError(f"unknown regression {self.regression!r}")
+        if self.decode_mode not in ("eager", "static", "compiled", "cuda_graph"):
+            raise ConfigError(f"unknown decode_mode {self.decode_mode!r}")
+        if self.decode_mode != "eager" and self.regression == "no_kv_cache":
+            raise ConfigError("no_kv_cache needs decode_mode 'eager'")
+        if not self.model_name:
+            raise ConfigError("model_name must not be empty")

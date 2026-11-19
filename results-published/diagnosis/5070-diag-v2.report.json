@@ -1,0 +1,1658 @@
+{
+  "rules_on_trace": {
+    "excluded": 0,
+    "splits": {
+      "dev": {
+        "faults": 12,
+        "detected": 3,
+        "cause_correct": 3,
+        "absorbed": 6,
+        "controls": 10,
+        "false_alarms": 0,
+        "confusion": {
+          "none": {
+            "none": 10
+          },
+          "host_sync": {
+            "none": 2
+          },
+          "growing_work": {
+            "growing_work": 1,
+            "none": 1
+          },
+          "wasted_gpu_work": {
+            "wasted_gpu_work": 2,
+            "none": 1
+          },
+          "launch_overhead": {
+            "none": 2
+          },
+          "allocator_churn": {
+            "none": 2
+          },
+          "cpu_stall": {
+            "none": 1
+          }
+        },
+        "detection_rate": 0.25,
+        "root_cause_rate": 0.25,
+        "false_alarm_rate": 0.0
+      },
+      "heldout": {
+        "faults": 17,
+        "detected": 11,
+        "cause_correct": 11,
+        "absorbed": 10,
+        "controls": 15,
+        "false_alarms": 0,
+        "confusion": {
+          "none": {
+            "none": 15
+          },
+          "host_sync": {
+            "host_sync": 3
+          },
+          "growing_work": {
+            "growing_work": 3
+          },
+          "wasted_gpu_work": {
+            "wasted_gpu_work": 2,
+            "none": 1
+          },
+          "launch_overhead": {
+            "none": 2,
+            "launch_overhead": 1
+          },
+          "allocator_churn": {
+            "allocator_churn": 2,
+            "none": 1
+          },
+          "cpu_stall": {
+            "none": 2
+          }
+        },
+        "detection_rate": 0.6470588235294118,
+        "root_cause_rate": 0.6470588235294118,
+        "false_alarm_rate": 0.0
+      }
+    },
+    "cases": [
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.00010864721810532885,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.004593560357778914,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.00816292953417952,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.0029907598793998957,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7003477467653977,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": 0.04090414978727641,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "growing_work",
+        "measured_slowdown": 1.8380871609969494,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.08 -> 28.52 us",
+          "busy time growth along the sequence 1.01 -> 1.19"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "wasted_gpu_work",
+        "measured_slowdown": 0.05538911243726519,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.07 -> 3.10 us",
+          "busy time growth along the sequence 1.01 -> 1.01",
+          "allocator calls per step 0.00 -> 0.01",
+          "kernels per step 1334 -> 1347",
+          "each added kernel is busy 5.76 us"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.06734505537865265,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.020721575627288047,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.11491017254315317,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 1.3848074655790832,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.004477325024350831,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.09191619565496723,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.0020647277100951378,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.02437395048561264,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.00032784983289779746,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.012628466060952137,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7902700964797704,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": 0.061680042603696084,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "none",
+        "measured_slowdown": 0.01805819168865841,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.04765683237671636,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "wasted_gpu_work",
+        "measured_slowdown": 0.05572246413528226,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 2.80 -> 2.84 us",
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 1302 -> 1338",
+          "each added kernel is busy 4.63 us"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.13448815747226017,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.04354695543270193,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.04118683506274379,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.0006104733622214198,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.0019239328024374114,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.017914467838042403,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.047560228548296335,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.2108067732385197,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.02977149594434647,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7001634053427854,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "host_sync",
+        "measured_slowdown": 0.17540512269913,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.32 -> 3.32 us",
+          "busy time growth along the sequence 1.01 -> 1.00",
+          "allocator calls per step 0.16 -> 0.00",
+          "kernels per step 1030 -> 1030",
+          "blocking host calls per step 0.02 -> 2.02"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "growing_work",
+        "measured_slowdown": 2.680190890251076,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.32 -> 39.59 us",
+          "busy time growth along the sequence 1.00 -> 1.11"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "wasted_gpu_work",
+        "measured_slowdown": 0.03071812804423457,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.32 -> 3.42 us",
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 1030 -> 1043",
+          "each added kernel is busy 11.78 us"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.08772188022648275,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.037973180734592216,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.025540385710003832,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "allocator_churn",
+        "measured_slowdown": 0.9822780853891193,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.32 -> 3.33 us",
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "allocator calls per step 0.00 -> 2.32"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.00434339476525003,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.12468081773796569,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.006640792234142268,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.07137950993040298,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.0036141851249656964,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.01751963357174624,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7530773954533314,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "host_sync",
+        "measured_slowdown": 0.1474938496959708,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.76 -> 3.75 us",
+          "busy time growth along the sequence 1.00 -> 1.00",
+          "allocator calls per step 0.01 -> 0.00",
+          "kernels per step 982 -> 982",
+          "blocking host calls per step 0.02 -> 2.02"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "growing_work",
+        "measured_slowdown": 0.2105858733104622,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.74 -> 6.21 us",
+          "busy time growth along the sequence 1.00 -> 1.21"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.02938889241737619,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.06849345384665073,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.09578830081984091,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.018139981395946414,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.04483439867478434,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": -0.018026713337468636,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.15000935936396664,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.01847244803880177,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.010190805726915997,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.006628870338039716,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.00010375559471698104,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7159484157479103,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "host_sync",
+        "measured_slowdown": 0.16146851321050892,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.09 -> 3.08 us",
+          "busy time growth along the sequence 1.01 -> 1.01",
+          "allocator calls per step 0.08 -> 0.00",
+          "kernels per step 1334 -> 1334",
+          "blocking host calls per step 0.02 -> 2.02"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "growing_work",
+        "measured_slowdown": 1.713707595825066,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.08 -> 30.47 us",
+          "busy time growth along the sequence 1.02 -> 1.24"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.008701950823836846,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "wasted_gpu_work",
+        "measured_slowdown": 0.0851640651480634,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.08 -> 3.22 us",
+          "busy time growth along the sequence 1.01 -> 1.01",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 1334 -> 1386",
+          "each added kernel is busy 6.91 us"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.0018659020100108004,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "launch_overhead",
+        "measured_slowdown": 0.1030006384597344,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.08 -> 2.88 us",
+          "busy time growth along the sequence 1.01 -> 1.01",
+          "allocator calls per step 0.00 -> 0.00",
+          "kernels per step 1334 -> 1462",
+          "each added kernel is busy 0.87 us"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "allocator_churn",
+        "measured_slowdown": 0.17182127425889537,
+        "absorbed": false,
+        "notes": [
+          "busy time per kernel 3.07 -> 3.08 us",
+          "busy time growth along the sequence 1.01 -> 1.01",
+          "allocator calls per step 0.00 -> 1.98"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.002832492864052849,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": -0.0064148136753361396,
+        "absorbed": true,
+        "notes": []
+      }
+    ]
+  },
+  "timing_only": {
+    "excluded": 0,
+    "splits": {
+      "dev": {
+        "faults": 12,
+        "detected": 3,
+        "cause_correct": 0,
+        "absorbed": 6,
+        "controls": 10,
+        "false_alarms": 0,
+        "confusion": {
+          "none": {
+            "none": 10
+          },
+          "host_sync": {
+            "none": 2
+          },
+          "growing_work": {
+            "unknown": 1,
+            "none": 1
+          },
+          "wasted_gpu_work": {
+            "unknown": 2,
+            "none": 1
+          },
+          "launch_overhead": {
+            "none": 2
+          },
+          "allocator_churn": {
+            "none": 2
+          },
+          "cpu_stall": {
+            "none": 1
+          }
+        },
+        "detection_rate": 0.25,
+        "root_cause_rate": 0.0,
+        "false_alarm_rate": 0.0
+      },
+      "heldout": {
+        "faults": 17,
+        "detected": 11,
+        "cause_correct": 0,
+        "absorbed": 10,
+        "controls": 15,
+        "false_alarms": 0,
+        "confusion": {
+          "none": {
+            "none": 15
+          },
+          "host_sync": {
+            "unknown": 3
+          },
+          "growing_work": {
+            "unknown": 3
+          },
+          "wasted_gpu_work": {
+            "unknown": 2,
+            "none": 1
+          },
+          "launch_overhead": {
+            "none": 2,
+            "unknown": 1
+          },
+          "allocator_churn": {
+            "unknown": 2,
+            "none": 1
+          },
+          "cpu_stall": {
+            "none": 2
+          }
+        },
+        "detection_rate": 0.6470588235294118,
+        "root_cause_rate": 0.0,
+        "false_alarm_rate": 0.0
+      }
+    },
+    "cases": [
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.00010864721810532885,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.004593560357778914,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.00816292953417952,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.0029907598793998957,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7003477467653977,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": 0.04090414978727641,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "unknown",
+        "measured_slowdown": 1.8380871609969494,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.17"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "unknown",
+        "measured_slowdown": 0.05538911243726519,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.06734505537865265,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.020721575627288047,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.11491017254315317,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 1.3848074655790832,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.004477325024350831,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 0,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.09191619565496723,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.0020647277100951378,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.02437395048561264,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.00032784983289779746,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.012628466060952137,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7902700964797704,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "none",
+        "measured_slowdown": 0.061680042603696084,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "none",
+        "measured_slowdown": 0.01805819168865841,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.04765683237671636,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "unknown",
+        "measured_slowdown": 0.05572246413528226,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.01"
+        ]
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.13448815747226017,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.04354695543270193,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.04118683506274379,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.0006104733622214198,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "dev",
+        "base_index": 1,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.0019239328024374114,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.017914467838042403,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.047560228548296335,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.2108067732385197,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.02977149594434647,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7001634053427854,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "unknown",
+        "measured_slowdown": 0.17540512269913,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "unknown",
+        "measured_slowdown": 2.680190890251076,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.11"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "unknown",
+        "measured_slowdown": 0.03071812804423457,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.01 -> 1.00"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.08772188022648275,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.037973180734592216,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.025540385710003832,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "unknown",
+        "measured_slowdown": 0.9822780853891193,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 0.98"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.00434339476525003,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 0,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.12468081773796569,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.006640792234142268,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.07137950993040298,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.0036141851249656964,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.01751963357174624,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7530773954533314,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "unknown",
+        "measured_slowdown": 0.1474938496959708,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "unknown",
+        "measured_slowdown": 0.2105858733104622,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.03 -> 1.06"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.02938889241737619,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": -0.06849345384665073,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.09578830081984091,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": 0.018139981395946414,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "none",
+        "measured_slowdown": 0.04483439867478434,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": -0.018026713337468636,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 1,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.15000935936396664,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "unchanged_a",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.01847244803880177,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "unchanged_b",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.010190805726915997,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "other_prompts",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.006628870338039716,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "longer_output",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": 0.00010375559471698104,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cuda_graph",
+        "truth": "none",
+        "answer": "none",
+        "measured_slowdown": -0.7159484157479103,
+        "absorbed": false,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "host_sync",
+        "truth": "host_sync",
+        "answer": "unknown",
+        "measured_slowdown": 0.16146851321050892,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "no_kv_cache",
+        "truth": "growing_work",
+        "answer": "unknown",
+        "measured_slowdown": 1.713707595825066,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.22"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "sorted_probs_x1",
+        "truth": "wasted_gpu_work",
+        "answer": "none",
+        "measured_slowdown": 0.008701950823836846,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "sorted_probs_x4",
+        "truth": "wasted_gpu_work",
+        "answer": "unknown",
+        "measured_slowdown": 0.0851640651480634,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "row_loop_x2",
+        "truth": "launch_overhead",
+        "answer": "none",
+        "measured_slowdown": -0.0018659020100108004,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "row_loop_x8",
+        "truth": "launch_overhead",
+        "answer": "unknown",
+        "measured_slowdown": 0.1030006384597344,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 1.00"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "empty_cache",
+        "truth": "allocator_churn",
+        "answer": "unknown",
+        "measured_slowdown": 0.17182127425889537,
+        "absorbed": false,
+        "notes": [
+          "inter-token latency growth along the sequence 1.00 -> 0.99"
+        ]
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cpu_stall_150us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": 0.002832492864052849,
+        "absorbed": true,
+        "notes": []
+      },
+      {
+        "split": "heldout",
+        "base_index": 2,
+        "case": "cpu_stall_1000us",
+        "truth": "cpu_stall",
+        "answer": "none",
+        "measured_slowdown": -0.0064148136753361396,
+        "absorbed": true,
+        "notes": []
+      }
+    ]
+  }
+}

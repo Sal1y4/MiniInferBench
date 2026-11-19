@@ -41,7 +41,9 @@ class SweepGrid:
 
 
 def _point_key(config: dict[str, Any]) -> tuple[Any, ...]:
-    return tuple(sorted(config.items()))
+    # Records written before a config field existed lack it; filling in the
+    # defaults keeps them recognizable as the same point.
+    return tuple(sorted(BenchmarkConfig.from_dict(config).to_dict().items()))
 
 
 def completed_points(results: Path, tag: str) -> set[tuple[Any, ...]]:

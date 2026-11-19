@@ -300,3 +300,34 @@ def plot_modes(
     ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9)
     written.append(_save(fig, out_dir, "modes_itl_vs_input.png"))
     return written
+
+
+# Rules drawn in the detection figure; the report's table lists all of them.
+DETECTION_RULES = ("fixed_5pct", "cv_band", "ci_overlap", "rank_test")
+
+
+def plot_detection(report: dict[str, Any], metric: str, out_dir: Path, subtitle: str) -> Path:
+    """Detection rate vs simulated slowdown, one line per rule. The point at
+    0% is the A/A false-positive rate: what the rule flags when nothing changed."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rules = report["metrics"][metric]["rules"]
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    for color, name in zip(SERIES, DETECTION_RULES, strict=False):
+        if name not in rules:
+            continue
+        xs = [0.0] + [100 * s for s, _ in rules[name]["simulated_detection"]]
+        ys = [100 * rules[name]["false_positive_rate"]]
+        ys += [100 * rate for _, rate in rules[name]["simulated_detection"]]
+        ax.plot(xs, ys, color=color, linewidth=2, marker="o", markersize=5, label=name)
+    ax.axhline(80, color=INK_SECONDARY, linewidth=0.8, linestyle=":")
+    ax.text(ax.get_xlim()[1], 81, "80% power", ha="right", fontsize=8.5, color=INK_SECONDARY)
+    ax.set_ylim(0, 105)
+    ax.legend(frameon=False, labelcolor=INK_SECONDARY, fontsize=9, loc="lower right")
+    _style(
+        ax,
+        f"How small a slowdown is detected ({metric})",
+        "Simulated slowdown (%); 0 = identical runs",
+        "Pairs flagged (%)",
+        subtitle,
+    )
+    return _save(fig, out_dir, f"detection_{metric}.png")

@@ -1,0 +1,8 @@
+before the profiler : median   1906.9 ms  CV 0.003  min 1897.8  max 1915.5
+before, second block: median   1940.0 ms  CV 0.014  min 1911.3  max 1988.0
+after the profiler  : median   1921.6 ms  CV 0.026  min 1889.5  max 2042.3
+after, second block : median   1919.8 ms  CV 0.082  min 1895.9  max 2433.9
+before the profiler : median   1908.2 ms  CV 0.010  min 1895.1  max 1957.7
+before, second block: median   1910.4 ms  CV 0.012  min 1865.1  max 1943.1
+after the profiler  : median   2252.8 ms  CV 0.132  min 1912.7  max 2888.8
+after, second block : median   2332.2 ms  CV 0.104  min 1916.9  max 2475.7

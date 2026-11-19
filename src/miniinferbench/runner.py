@@ -15,6 +15,7 @@ Measurement boundaries for one run (all inputs are already on the device):
 
 from __future__ import annotations
 
+import time
 import weakref
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
@@ -27,8 +28,40 @@ from transformers import DynamicCache, GenerationConfig, PreTrainedModel, Static
 from miniinferbench.config import DecodeMode, Regression
 from miniinferbench.timing import EventTimeline, WallClock
 
-# Deliberate slowdowns for the regression case study. Each one keeps the output
-# identical, so only the harness's timing comparison and the trace can catch it.
+# Deliberate slowdowns for the regression case study and the diagnosis task
+# set. Each one keeps the output identical, so only the harness's timing
+# comparison and the trace can catch it. Each is a mistake people make:
+#   host_sync_each_step     copy every token to the host (e.g. an EOS check)
+#   no_kv_cache             recompute the whole sequence every step
+#   sorted_probs_each_step  leftover sampling code: softmax + sort over the
+#                           vocabulary, though greedy only needs the argmax
+#   per_row_bookkeeping     a Python loop over batch rows doing tiny tensor ops
+#   empty_cache_each_step   torch.cuda.empty_cache() inside the loop, so the
+#                           allocator returns and re-requests device memory
+_SCRATCH_BYTES = 16 * 2**20
+
+
+def _inject(
+    regression: Regression,
+    level: int,
+    logits: torch.Tensor,
+    token: torch.Tensor,
+    done: torch.Tensor,
+) -> None:
+    """Run the extra per-step work of `regression`, `level` times."""
+    for _ in range(level):
+        if regression == "host_sync_each_step":
+            token.cpu()
+        elif regression == "sorted_probs_each_step":
+            logits[:, -1, :].float().softmax(dim=-1).sort(dim=-1, descending=True)
+        elif regression == "per_row_bookkeeping":
+            for row in range(token.shape[0]):
+                done[row] |= token[row, 0] == 0
+        elif regression == "empty_cache_each_step":
+            scratch = torch.empty(_SCRATCH_BYTES, dtype=torch.uint8, device=token.device)
+            del scratch
+            if token.device.type == "cuda":
+                torch.cuda.empty_cache()
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +85,14 @@ class RunSamples:
     @property
     def e2e_event_ms(self) -> float:
         return self.ttft_ms + sum(self.itl_ms)
+
+
+def _spin(microseconds: int) -> None:
+    """Busy-wait on the CPU. Sleeping would hand the core back to the OS and
+    make the delay depend on the scheduler; spinning costs what it says."""
+    end = time.perf_counter_ns() + microseconds * 1000
+    while time.perf_counter_ns() < end:
+        pass
 
 
 def _next_token(logits: torch.Tensor) -> torch.Tensor:
@@ -132,15 +173,21 @@ def greedy_decode(
     regression: Regression = "none",
     decode_mode: DecodeMode = "eager",
     phase: PhaseScope = _no_scope,
+    step_delay_us: int = 0,
+    regression_level: int = 1,
+    step_delay_sync: bool = False,
 ) -> torch.Tensor:
     """Generate exactly `output_len` tokens per sequence; returns `[batch, output_len]`.
 
     EOS is ignored on purpose so every run does the same amount of work.
     If `timeline` is given, it is marked before prefill and after every token.
-    `regression` injects a known slowdown (see `Regression`); "none" in normal use.
+    `regression` injects a known slowdown (see `_inject`), repeated
+    `regression_level` times per step; "none" in normal use.
     `decode_mode` other than "eager" uses a static KV cache; "compiled" and
     "cuda_graph" also compile the decode step (see `_COMPILE_MODES`). Prefill
-    is eager in every mode.
+    is eager in every mode. `step_delay_us` busy-waits that long in every
+    decode step and leaves the output unchanged; with `step_delay_sync` the
+    GPU is drained first, so the wait is not hidden behind queued GPU work.
     """
     if output_len < 1:
         raise ValueError(f"output_len must be >= 1, got {output_len}")
@@ -182,6 +229,7 @@ def greedy_decode(
     if timeline is not None:
         timeline.mark()
     sequence = input_ids
+    done = torch.zeros(batch_size, dtype=torch.bool, device=device)
     for step in range(output_len - 1):
         with phase("decode_step"):
             if regression == "no_kv_cache":
@@ -199,10 +247,12 @@ def greedy_decode(
                     **static_kwargs(input_len + step, input_len + step + 1),
                 )
             token = _next_token(out.logits)
-            if regression == "host_sync_each_step":
-                # A common real bug: copying each token to the host (e.g. to check
-                # for EOS) forces the CPU to wait for the GPU every step.
-                token.cpu()
+            if regression not in ("none", "no_kv_cache"):
+                _inject(regression, regression_level, out.logits, token, done)
+            if step_delay_us:
+                if step_delay_sync and device.type == "cuda":
+                    torch.cuda.synchronize(device)
+                _spin(step_delay_us)
         tokens.append(token)
         if timeline is not None:
             timeline.mark()
@@ -215,6 +265,9 @@ def measure_run(
     output_len: int,
     regression: Regression = "none",
     decode_mode: DecodeMode = "eager",
+    step_delay_us: int = 0,
+    regression_level: int = 1,
+    step_delay_sync: bool = False,
 ) -> RunSamples:
     """Run one timed generation and return its raw samples."""
     device = input_ids.device
@@ -223,7 +276,17 @@ def measure_run(
     timeline = EventTimeline(device)
     wall = WallClock(device)
     wall.start()
-    greedy_decode(model, input_ids, output_len, timeline, regression, decode_mode)
+    greedy_decode(
+        model,
+        input_ids,
+        output_len,
+        timeline,
+        regression,
+        decode_mode,
+        step_delay_us=step_delay_us,
+        regression_level=regression_level,
+        step_delay_sync=step_delay_sync,
+    )
     e2e_wall_ms = wall.stop()
     gaps = timeline.finish()
     peak = torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None
@@ -343,6 +406,7 @@ def check_correctness(
     regression: Regression = "none",
     tie_tolerance: float = DEFAULT_TIE_TOLERANCE,
     decode_mode: DecodeMode = "eager",
+    regression_level: int = 1,
 ) -> CorrectnessReport:
     """Compare our loop with `generate()` token by token.
 
@@ -354,7 +418,12 @@ def check_correctness(
     continuations no longer share a prefix.
     """
     ours = greedy_decode(
-        model, input_ids, output_len, regression=regression, decode_mode=decode_mode
+        model,
+        input_ids,
+        output_len,
+        regression=regression,
+        decode_mode=decode_mode,
+        regression_level=regression_level,
     )
     reference = reference_generate(model, input_ids, output_len)
     divergences = []

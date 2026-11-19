@@ -1,0 +1,37 @@
+[
+  {
+    "baseline": "bs4-loop",
+    "candidate": "bs4-generate",
+    "verdict": "slower",
+    "cause": "launch_overhead",
+    "notes": [
+      "busy time per kernel 3.07 -> 3.04 us",
+      "busy time growth along the sequence 1.01 -> 1.01",
+      "allocator calls per step 0.00 -> 0.00",
+      "kernels per step 1335 -> 1366",
+      "each added kernel is busy 1.68 us"
+    ],
+    "change_per_token": 0.04131354480378158,
+    "ms_per_token": [
+      15.058072644933418,
+      15.680175003808472
+    ],
+    "timed_runs": [
+      20,
+      20
+    ],
+    "same_output": true,
+    "kernels_per_step": [
+      1335.0,
+      1366
+    ],
+    "gpu_busy_us_per_step": [
+      4095.110107421875,
+      4147.2548828125
+    ],
+    "host_waits_per_step": [
+      0.015748031496062992,
+      7.125
+    ]
+  }
+]

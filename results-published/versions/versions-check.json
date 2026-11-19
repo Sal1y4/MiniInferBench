@@ -1,0 +1,241 @@
+[
+  {
+    "baseline": "generate@4.46.3",
+    "candidate": "generate@4.51.3",
+    "verdict": "slower",
+    "cause": "unknown",
+    "notes": [
+      "busy time per kernel 3.60 -> 3.61 us",
+      "busy time growth along the sequence 1.02 -> 1.02",
+      "allocator calls per step 0.00 -> 0.00",
+      "kernels per step 1435 -> 1435",
+      "blocking host calls per step 13.08 -> 12.09",
+      "CPU side of a step 24331 -> 21535 us"
+    ],
+    "change_per_token": 0.053111138256429546,
+    "ms_per_token": [
+      16.309716691466747,
+      17.16007872278169
+    ],
+    "timed_runs": [
+      20,
+      20
+    ],
+    "same_output": true,
+    "kernels_per_step": [
+      1435,
+      1435
+    ],
+    "gpu_busy_us_per_step": [
+      5172.263671875,
+      5177.25244140625
+    ],
+    "host_waits_per_step": [
+      13.078125,
+      12.0859375
+    ]
+  },
+  {
+    "baseline": "generate@4.51.3",
+    "candidate": "generate@4.57.6",
+    "verdict": "faster",
+    "cause": null,
+    "notes": [],
+    "change_per_token": -0.05195154178326311,
+    "ms_per_token": [
+      17.16007872278169,
+      16.268586176011013
+    ],
+    "timed_runs": [
+      20,
+      20
+    ],
+    "same_output": true,
+    "kernels_per_step": [
+      1435,
+      1371
+    ],
+    "gpu_busy_us_per_step": [
+      5177.25244140625,
+      4156.92724609375
+    ],
+    "host_waits_per_step": [
+      12.0859375,
+      12.0859375
+    ]
+  },
+  {
+    "baseline": "generate@4.57.6",
+    "candidate": "generate@5.2.0",
+    "verdict": "no change",
+    "cause": null,
+    "notes": [],
+    "change_per_token": -0.004006239554301572,
+    "ms_per_token": [
+      16.268586176011013,
+      16.15602229298929
+    ],
+    "timed_runs": [
+      20,
+      20
+    ],
+    "same_output": true,
+    "kernels_per_step": [
+      1371,
+      1367
+    ],
+    "gpu_busy_us_per_step": [
+      4156.92724609375,
+      4159.71630859375
+    ],
+    "host_waits_per_step": [
+      12.0859375,
+      13.0859375
+    ]
+  },
+  {
+    "baseline": "generate@5.2.0",
+    "candidate": "generate@5.4.0",
+    "verdict": "no change",
+    "cause": null,
+    "notes": [],
+    "change_per_token": -0.016911381005086934,
+    "ms_per_token": [
+      16.15602229298929,
+      15.882801644465872
+    ],
+    "timed_runs": [
+      20,
+      20
+    ],
+    "same_output": true,
+    "kernels_per_step": [
+      1367,
+      1369
+    ],
+    "gpu_busy_us_per_step": [
+      4159.71630859375,
+      4153.57177734375
+    ],
+    "host_waits_per_step": [
+      13.0859375,
+      9.09375
+    ]
+  },
+  {
+    "baseline": "generate@5.4.0",
+    "candidate": "generate@5.12.1",
+    "verdict": "no change",
+    "cause": null,
+    "notes": [],
+    "change_per_token": 0.003040208496910779,
+    "ms_per_token": [
+      15.882801644465872,
+      15.930450101450333
+    ],
+    "timed_runs": [
+      20,
+      20
+    ],
+    "same_output": true,
+    "kernels_per_step": [
+      1369,
+      1370
+    ],
+    "gpu_busy_us_per_step": [
+      4153.57177734375,
+      4151.99658203125
+    ],
+    "host_waits_per_step": [
+      9.09375,
+      9.09375
+    ]
+  },
+  {
+    "baseline": "generate@5.12.1",
+    "candidate": "generate@5.22.1",
+    "verdict": "no change",
+    "cause": null,
+    "notes": [],
+    "change_per_token": -0.003860187667365733,
+    "ms_per_token": [
+      15.930450101450333,
+      15.86895557443313
+    ],
+    "timed_runs": [
+      20,
+      20
+    ],
+    "same_output": true,
+    "kernels_per_step": [
+      1370,
+      1366
+    ],
+    "gpu_busy_us_per_step": [
+      4151.99658203125,
+      4141.38720703125
+    ],
+    "host_waits_per_step": [
+      9.09375,
+      7.125
+    ]
+  },
+  {
+    "baseline": "generate@5.22.1",
+    "candidate": "generate@5.23.0",
+    "verdict": "no change",
+    "cause": null,
+    "notes": [],
+    "change_per_token": -0.03196126378823516,
+    "ms_per_token": [
+      15.86895557443313,
+      15.361763699274888
+    ],
+    "timed_runs": [
+      20,
+      20
+    ],
+    "same_output": true,
+    "kernels_per_step": [
+      1366,
+      1366
+    ],
+    "gpu_busy_us_per_step": [
+      4141.38720703125,
+      4145.66650390625
+    ],
+    "host_waits_per_step": [
+      7.125,
+      7.125
+    ]
+  },
+  {
+    "baseline": "generate@4.46.3",
+    "candidate": "generate@5.23.0",
+    "verdict": "faster",
+    "cause": null,
+    "notes": [],
+    "change_per_token": -0.05812197784452189,
+    "ms_per_token": [
+      16.309716691466747,
+      15.361763699274888
+    ],
+    "timed_runs": [
+      20,
+      20
+    ],
+    "same_output": true,
+    "kernels_per_step": [
+      1435,
+      1366
+    ],
+    "gpu_busy_us_per_step": [
+      5172.263671875,
+      4145.66650390625
+    ],
+    "host_waits_per_step": [
+      13.078125,
+      7.125
+    ]
+  }
+]

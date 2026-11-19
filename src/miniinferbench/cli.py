@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--config", type=Path, help="JSON config file (defaults if omitted)")
     run.add_argument("--results", type=Path, default=DEFAULT_RESULTS)
     run.add_argument("--allow-cpu", action="store_true", help="allow a CPU smoke run")
+
+    train = sub.add_parser("train", help="run one training-step config and append a record")
+    train.add_argument("--config", type=Path, help="JSON TrainConfig file (defaults if omitted)")
+    train.add_argument("--results", type=Path, default=Path("results/train.jsonl"))
+    train.add_argument("--allow-cpu", action="store_true", help="allow a CPU smoke run")
 
     rerun = sub.add_parser("rerun", help="repeat a recorded run with its exact config")
     rerun.add_argument("run_id")
@@ -60,6 +67,61 @@ def build_parser() -> argparse.ArgumentParser:
     modes.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
     modes.add_argument("--out", type=Path, default=Path("docs/figures"))
 
+    repeat = sub.add_parser(
+        "repeat", help="run one config many times, optionally with known slowdowns"
+    )
+    repeat.add_argument("--config", type=Path, help="JSON config file (defaults if omitted)")
+    repeat.add_argument("--tag", required=True, help="names the experiment; reuse it to resume")
+    repeat.add_argument("--repeats", type=int, default=20, help="records per delay")
+    repeat.add_argument(
+        "--delay-us",
+        type=int,
+        nargs="+",
+        default=[0],
+        help="busy-wait per decode step; 0 is the unchanged baseline",
+    )
+    repeat.add_argument("--results", type=Path, default=Path("results/repeat.jsonl"))
+    repeat.add_argument("--allow-cpu", action="store_true")
+
+    noise = sub.add_parser(
+        "noise", help="false-positive and detection rates of the comparison rules"
+    )
+    noise.add_argument("--tag", required=True)
+    noise.add_argument("--results", type=Path, default=Path("results/repeat.jsonl"))
+    noise.add_argument("--json", type=Path, help="also write the full report as JSON")
+    noise.add_argument("--figures", type=Path, help="also write detection figures here")
+
+    cases = sub.add_parser(
+        "cases", help="run a diagnosis suite: baseline + candidate evidence per case"
+    )
+    cases.add_argument("--suite", type=Path, default=Path("configs/diagnosis_suite.json"))
+    cases.add_argument("--tag", required=True)
+    cases.add_argument("--results", type=Path, default=Path("results/diagnosis.jsonl"))
+    cases.add_argument("--traces", type=Path, default=Path("traces/diagnosis"))
+    cases.add_argument("--keep-traces", action="store_true")
+    cases.add_argument("--allow-cpu", action="store_true")
+    diagnose = sub.add_parser("diagnose", help="score the reference diagnosers on collected cases")
+    diagnose.add_argument("--tag", required=True)
+    diagnose.add_argument("--results", type=Path, default=Path("results/diagnosis.jsonl"))
+    diagnose.add_argument("--json", type=Path, help="also write the full report as JSON")
+    gen = sub.add_parser(
+        "gen", help="time and trace one generation path: real generate() or the minimal loop"
+    )
+    gen.add_argument("--config", type=Path, help="JSON config file (defaults if omitted)")
+    gen.add_argument("--path", choices=("generate", "loop"), default="generate")
+    gen.add_argument("--label", help="group name for `mib check` (default: path@transformers)")
+    gen.add_argument("--results", type=Path, default=Path("results/gen.jsonl"))
+    gen.add_argument("--traces", type=Path, default=Path("traces/gen"))
+    gen.add_argument("--keep-trace", action="store_true")
+    gen.add_argument("--allow-cpu", action="store_true")
+    check = sub.add_parser(
+        "check", help="is one group of `mib gen` records slower than another, and why"
+    )
+    check.add_argument(
+        "labels", nargs="+", help="two or more labels, oldest first; neighbours are compared"
+    )
+    check.add_argument("--results", type=Path, default=Path("results/gen.jsonl"))
+    check.add_argument("--json", type=Path, help="also write the comparisons as JSON")
     table = sub.add_parser("table", help="print one sweep tag as a Markdown table")
     table.add_argument("--tag", required=True)
     table.add_argument("--results", type=Path, default=Path("results/sweep.jsonl"))
@@ -102,6 +164,30 @@ def _print_table(results: Path, tag: str) -> None:
         print(head + " | ".join(cells) + " |")
 
 
+def cmd_check(results: Path, labels: list[str], json_path: Path | None) -> int:
+    from miniinferbench.genbench import compare, format_comparison, load_group
+
+    if len(labels) < 2:
+        print("give at least two labels", file=sys.stderr)
+        return 2
+    groups = {label: load_group(results, label) for label in labels}
+    missing = [label for label, group in groups.items() if not group]
+    if missing:
+        print(f"no usable records in {results} for: {', '.join(missing)}", file=sys.stderr)
+        return 1
+    pairs = list(itertools.pairwise(labels))
+    if len(labels) > 2:
+        pairs.append((labels[0], labels[-1]))
+    report = []
+    for old, new in pairs:
+        result = compare(groups[old], groups[new])
+        report.append({"baseline": old, "candidate": new} | result)
+        print(format_comparison(result, old, new), end="\n\n")
+    if json_path:
+        json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return 0
+
+
 def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
     from miniinferbench import metrics
     from miniinferbench.bench import default_device, load_model
@@ -126,7 +212,15 @@ def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
         name += f"-{config.decode_mode}"
     trace_path = out_dir / f"{name}.trace.json"
     capture_trace(
-        model, input_ids, config.output_len, trace_path, config.regression, config.decode_mode
+        model,
+        input_ids,
+        config.output_len,
+        trace_path,
+        config.regression,
+        config.decode_mode,
+        config.step_delay_us,
+        config.regression_level,
+        config.step_delay_sync,
     )
     report = analyze(trace_path)
     untraced_us = metrics.percentile(baseline.itl_ms, 50) * 1000
@@ -153,6 +247,30 @@ def cmd_trace(config_path: Path | None, out_dir: Path) -> int:
     print("top kernels:")
     for k in report["top_kernels"][:5]:
         print(f"  {k['total_us']:10.0f} us  x{k['count']:<5d} {k['name'][:90]}")
+    return 0
+
+
+def cmd_noise(results: Path, tag: str, json_path: Path | None, figures: Path | None) -> int:
+    from miniinferbench.noise import build_report, format_report, load_groups
+
+    groups = load_groups(results, tag)
+    report = build_report(groups)
+    print(format_report(report))
+    if json_path:
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if figures:
+        from miniinferbench.plots import plot_detection
+
+        head = groups[0][0]
+        config = head["config"]
+        subtitle = (
+            f"{config['model_name'].split('/')[-1]}, batch {config['batch_size']}, "
+            f"input {config['input_len']}, output {config['output_len']}, "
+            f"{report['baseline_records']} records x {report['runs_per_record']} runs"
+        )
+        for metric in report["metrics"]:
+            print(plot_detection(report, metric, figures, subtitle))
     return 0
 
 
@@ -187,6 +305,20 @@ def main(argv: list[str] | None = None) -> int:
         config = BenchmarkConfig.load(args.config) if args.config else BenchmarkConfig()
         record = _execute(config, args.results, args.allow_cpu)
         return 0 if record["status"] == "ok" else 1
+    if args.command == "train":
+        from miniinferbench.results import append_record
+        from miniinferbench.training import TrainConfig, TrainOptions, run_train_task
+
+        train_config = TrainConfig.load(args.config) if args.config else TrainConfig()
+        record = run_train_task(train_config, TrainOptions(require_cuda=not args.allow_cpu))
+        append_record(args.results, record)
+        print(f"run {record['run_id']}: {record['status']} {record.get('reason', '')}".rstrip())
+        if "gate" in record:
+            gate = record["gate"]
+            print(f"gate: {gate['kind']}, max relative loss gap {gate['max_relative_gap']:.2e}")
+        if "summary" in record:
+            print(json.dumps(record["summary"], indent=2))
+        return 0 if record["status"] == "ok" else 1
     if args.command == "rerun":
         from miniinferbench.results import find_record
 
@@ -206,6 +338,61 @@ def main(argv: list[str] | None = None) -> int:
         statuses = [r["status"] for r in records]
         print({s: statuses.count(s) for s in sorted(set(statuses))})
         return 0
+    if args.command == "repeat":
+        from miniinferbench.noise import run_repeats
+
+        base = BenchmarkConfig.load(args.config) if args.config else BenchmarkConfig()
+        records = run_repeats(
+            base, args.delay_us, args.repeats, args.results, args.tag, not args.allow_cpu
+        )
+        statuses = [r["status"] for r in records]
+        print({s: statuses.count(s) for s in sorted(set(statuses))})
+        return 0
+    if args.command == "noise":
+        return cmd_noise(args.results, args.tag, args.json, args.figures)
+    if args.command == "cases":
+        from miniinferbench.diagnosis import Suite, collect
+
+        written = collect(
+            Suite.load(args.suite),
+            args.results,
+            args.tag,
+            args.traces,
+            require_cuda=not args.allow_cpu,
+            keep_traces=args.keep_traces,
+        )
+        print(f"{written} cases written to {args.results}")
+        return 0
+    if args.command == "diagnose":
+        from miniinferbench.diagnosis import DIAGNOSERS, format_scores, load_cases, score
+
+        collected = load_cases(args.results, args.tag)
+        if not collected:
+            print(f"no cases with tag {args.tag!r} in {args.results}", file=sys.stderr)
+            return 1
+        report = {name: score(collected, diagnoser) for name, diagnoser in DIAGNOSERS.items()}
+        if args.json:
+            args.json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        print(format_scores(report))
+        return 0
+    if args.command == "gen":
+        from miniinferbench.genbench import default_label, run_generation_task
+        from miniinferbench.results import append_record
+
+        config = BenchmarkConfig.load(args.config) if args.config else BenchmarkConfig()
+        record = run_generation_task(
+            config,
+            args.path,
+            args.traces / "gen.trace.json",
+            require_cuda=not args.allow_cpu,
+            keep_trace=args.keep_trace,
+        )
+        record["label"] = args.label or default_label(record)
+        append_record(args.results, record)
+        print(f"[{record['status']}] {record['label']} -> {args.results}  {record['reason']}")
+        return 0 if record["status"] == "ok" else 1
+    if args.command == "check":
+        return cmd_check(args.results, args.labels, args.json)
     if args.command == "trace":
         return cmd_trace(args.config, args.out)
     if args.command == "plot":
